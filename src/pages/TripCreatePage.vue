@@ -12,6 +12,7 @@ const timezone = ref("Asia/Taipei");
 const startDate = ref("2026-02-10");
 const endDate = ref("2026-02-14");
 const notes = ref("v0.1 backend milestone");
+const creatorNickname = ref("");
 
 const loading = ref(false);
 const errorMsg = ref("");
@@ -26,13 +27,23 @@ async function handleCreate() {
       startDate: startDate.value,
       endDate: endDate.value,
       notes: notes.value,
+      creatorNickname: creatorNickname.value || "Owner",
     });
 
     if (!trip.inviteToken) {
       throw new Error("API did not return inviteToken");
     }
+    if (!trip.memberToken) {
+      throw new Error("API did not return memberToken");
+    }
 
-    session.setTripToken(trip.id, trip.inviteToken);
+    session.setTripAccess(trip.id, {
+      memberToken: trip.memberToken,
+      role: trip.role ?? "owner",
+      nickname: trip.nickname ?? creatorNickname.value,
+      tripToken: trip.inviteToken,
+    });
+    
     await router.push(`/t/${trip.id}`);
   } catch (e: any) {
     errorMsg.value = e?.message ?? "Create trip failed";
@@ -52,6 +63,11 @@ async function handleCreate() {
         <label class="block">
           <div class="text-sm text-zinc-300">Title</div>
           <input v-model="title" class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 outline-none ring-1 ring-zinc-800 focus:ring-zinc-600" />
+        </label>
+
+        <label class="block">
+          <div class="text-sm text-zinc-300">Your Nickname</div>
+          <input v-model="creatorNickname" placeholder="Owner" class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 outline-none ring-1 ring-zinc-800 focus:ring-zinc-600" />
         </label>
 
         <label class="block">
