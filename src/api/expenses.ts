@@ -10,6 +10,9 @@ export type ExpenseItem = {
   currency?: string | null;
   paymentSource?: string | null;
   splitMethod?: string | null;
+  originalAmount?: number | null;
+  originalCurrency?: string | null;
+  fxRate?: number | null;
 };
 
 export type ExpenseGroup = {
@@ -30,10 +33,13 @@ export type ExpenseSummary = {
 
 export type CreateExpensePayload = {
   title: string;
-  amount: number;
+  amount?: number;
   expenseDate: string;
   paidByMemberId: string;
   participantMemberIds: string[];
+  originalAmount?: number;
+  originalCurrency?: string;
+  fxRate?: number;
 };
 
 export type ExpenseSettlement = {
@@ -75,6 +81,9 @@ function normalizeExpenseItem(raw: any): ExpenseItem {
     currency: raw?.currency ?? null,
     paymentSource: raw?.paymentSource ?? raw?.payment_source ?? null,
     splitMethod: raw?.splitMethod ?? raw?.split_method ?? null,
+    originalAmount: raw?.originalAmount ?? raw?.original_amount ?? null,
+    originalCurrency: raw?.originalCurrency ?? raw?.original_currency ?? null,
+    fxRate: raw?.fxRate ?? raw?.fx_rate ?? null,
   };
 }
 
@@ -167,6 +176,15 @@ function dedupeMembers(members: ExpenseMember[]): ExpenseMember[] {
 export async function getExpensesAll(tripId: string): Promise<ExpenseGroup[]> {
   const res = await api.get(`/api/trips/${tripId}/expenses/all`);
   const data = res.data as any;
+  if (data && typeof data === 'object' && !Array.isArray(data) && !data.items && !data.data) {
+    return Object.entries(data).map(([date, items]) => {
+      const parsedItems = Array.isArray(items) ? items : [];
+      return {
+        expenseDate: date,
+        items: parsedItems.map(normalizeExpenseItem),
+      };
+    }).sort((a, b) => b.expenseDate.localeCompare(a.expenseDate));
+  }
   const list = Array.isArray(data) ? data : data?.items ?? data?.data ?? [];
   return list.map(normalizeExpenseGroup);
 }
@@ -187,17 +205,55 @@ export async function getSettlements(tripId: string): Promise<ExpenseSettlement[
 }
 
 export async function createExpense(tripId: string, payload: CreateExpensePayload): Promise<ExpenseItem> {
-  const res = await api.post(`/api/trips/${tripId}/expenses`, {
+  const reqPayload: any = {
     title: payload.title,
     amount: payload.amount,
     expenseDate: payload.expenseDate,
     paidByMemberId: payload.paidByMemberId,
     participantMemberIds: payload.participantMemberIds,
-    currency: "TWD",
     paymentSource: "PERSONAL",
     splitMethod: "EQUAL",
-  });
+  };
+  
+  if (payload.originalAmount !== undefined && payload.originalCurrency !== undefined && payload.fxRate !== undefined) {
+    reqPayload.original = {
+      amount: payload.originalAmount,
+      currency: payload.originalCurrency,
+      fxRate: payload.fxRate,
+    };
+  }
+
+  const res = await api.post(`/api/trips/${tripId}/expenses`, reqPayload);
   const data = res.data as any;
   const item = data?.item ?? data?.expense ?? data?.data ?? data;
   return normalizeExpenseItem(item);
+}
+
+export async function updateExpense(tripId: string, expenseId: string, payload: CreateExpensePayload): Promise<ExpenseItem> {
+  const reqPayload: any = {
+    title: payload.title,
+    amount: payload.amount,
+    expenseDate: payload.expenseDate,
+    paidByMemberId: payload.paidByMemberId,
+    participantMemberIds: payload.participantMemberIds,
+    paymentSource: "PERSONAL",
+    splitMethod: "EQUAL",
+  };
+  
+  if (payload.originalAmount !== undefined && payload.originalCurrency !== undefined && payload.fxRate !== undefined) {
+    reqPayload.original = {
+      amount: payload.originalAmount,
+      currency: payload.originalCurrency,
+      fxRate: payload.fxRate,
+    };
+  }
+
+  const res = await api.put(`/api/trips/${tripId}/expenses/${expenseId}`, reqPayload);
+  const data = res.data as any;
+  const item = data?.item ?? data?.expense ?? data?.data ?? data;
+  return normalizeExpenseItem(item);
+}
+
+export async function deleteExpense(tripId: string, expenseId: string): Promise<void> {
+  await api.delete(`/api/trips/${tripId}/expenses/${expenseId}`);
 }

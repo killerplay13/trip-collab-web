@@ -18,6 +18,7 @@ declare module 'vue' {
     HelloWorld: typeof import('./src/components/HelloWorld.vue')['default']
     ItineraryCreateForm: typeof import('./src/components/ItineraryCreateForm.vue')['default']
     ItineraryItemActions: typeof import('./src/components/ItineraryItemActions.vue')['default']
+    NoteForm: typeof import('./src/components/NoteForm.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
   }

@@ -13,6 +13,15 @@ const startDate = ref("2026-02-10");
 const endDate = ref("2026-02-14");
 const notes = ref("v0.1 backend milestone");
 const creatorNickname = ref("");
+const currency = ref("TWD");
+
+const availableCurrencies = [
+  { code: "TWD", label: "TWD - 台幣" },
+  { code: "USD", label: "USD - 美金" },
+  { code: "JPY", label: "JPY - 日幣" },
+  { code: "EUR", label: "EUR - 歐元" },
+  { code: "KRW", label: "KRW - 韓元" },
+];
 
 const loading = ref(false);
 const errorMsg = ref("");
@@ -28,6 +37,7 @@ async function handleCreate() {
       endDate: endDate.value,
       notes: notes.value,
       creatorNickname: creatorNickname.value || "Owner",
+      currency: currency.value,
     });
 
     if (!trip.inviteToken) {
@@ -83,6 +93,15 @@ async function handleCreate() {
         <label class="block">
           <div class="text-sm text-zinc-300">Notes</div>
           <textarea v-model="notes" rows="3" class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 outline-none ring-1 ring-zinc-800 focus:ring-zinc-600" />
+        </label>
+
+        <label class="block">
+          <div class="text-sm text-zinc-300">Base Currency</div>
+          <select v-model="currency" class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 outline-none ring-1 ring-zinc-800 focus:ring-zinc-600">
+            <option v-for="c in availableCurrencies" :key="c.code" :value="c.code">
+              {{ c.label }}
+            </option>
+          </select>
         </label>
 
         <button

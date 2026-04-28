@@ -49,7 +49,7 @@ function actionClass(disabled: boolean, tone: "normal" | "danger" = "normal") {
       target="_blank"
       rel="noreferrer"
     >
-      Map
+      {{ $t('itinerary.map') }}
     </el-button>
     <el-button
       v-if="canReorderData"
@@ -60,7 +60,7 @@ function actionClass(disabled: boolean, tone: "normal" | "danger" = "normal") {
       :class="actionClass(props.idx === 0 || props.reordering)"
       @click="emit('move-up', props.idx)"
     >
-      Up
+      {{ $t('itinerary.up') }}
     </el-button>
     <el-button
       v-if="canReorderData"
@@ -71,7 +71,7 @@ function actionClass(disabled: boolean, tone: "normal" | "danger" = "normal") {
       :class="actionClass(props.idx === props.total - 1 || props.reordering)"
       @click="emit('move-down', props.idx)"
     >
-      Down
+      {{ $t('itinerary.down') }}
     </el-button>
     <div v-if="canReorderData || canDeleteData" class="mx-1 h-4 w-px bg-zinc-800/50"></div>
     <el-button
@@ -82,7 +82,7 @@ function actionClass(disabled: boolean, tone: "normal" | "danger" = "normal") {
       :class="actionClass(false)"
       @click="emit('move', props.item)"
     >
-      Move
+      {{ $t('itinerary.moveBtn') }}
     </el-button>
     <el-button
       size="small"
@@ -91,7 +91,7 @@ function actionClass(disabled: boolean, tone: "normal" | "danger" = "normal") {
       :class="actionClass(false)"
       @click="emit('edit', props.item)"
     >
-      Edit
+      {{ $t('itinerary.editItem') }}
     </el-button>
     <el-button
       v-if="canDeleteData"
@@ -102,7 +102,7 @@ function actionClass(disabled: boolean, tone: "normal" | "danger" = "normal") {
       :class="actionClass(false, 'danger')"
       @click="emit('delete', props.item)"
     >
-      Delete
+      {{ $t('itinerary.deleteBtn') }}
     </el-button>
   </div>
 </template>

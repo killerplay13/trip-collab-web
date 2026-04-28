@@ -8,6 +8,7 @@ export type CreateTripPayload = {
   endDate: string;
   notes?: string;
   creatorNickname: string;
+  currency?: string;
 };
 
 export async function createTrip(
@@ -42,6 +43,19 @@ export async function createTrip(
 
 export async function getTrip(tripId: string): Promise<Trip> {
   const res = await api.get<Trip>(`/api/trips/${tripId}`);
+  return res.data;
+}
+
+export type UpdateTripPayload = {
+  title?: string;
+  timezone?: string;
+  startDate?: string;
+  endDate?: string;
+  notes?: string;
+};
+
+export async function updateTrip(tripId: string, payload: UpdateTripPayload): Promise<Trip> {
+  const res = await api.patch<Trip>(`/api/trips/${tripId}`, payload);
   return res.data;
 }
 

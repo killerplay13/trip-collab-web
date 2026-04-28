@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
   dayDate: string; // default selected date
@@ -28,6 +29,7 @@ const note = ref("");
 const sortOrder = ref("");
 const timeError = ref("");
 const sortOrderError = ref("");
+const { t } = useI18n();
 
 function normalizeTime(value: string) {
   const trimmed = value.trim();
@@ -51,15 +53,15 @@ function submit() {
   const normalizedStart = normalizeTime(startRaw);
   const normalizedEnd = normalizeTime(endRaw);
   if (startRaw && !normalizedStart) {
-    timeError.value = "Start time must be HH:mm or HH:mm:ss.";
+    timeError.value = t('itinerary.startTimeInvalid');
     return;
   }
   if (endRaw && !normalizedEnd) {
-    timeError.value = "End time must be HH:mm or HH:mm:ss.";
+    timeError.value = t('itinerary.endTimeInvalid');
     return;
   }
   if (!isTimeRangeValid(normalizedStart ?? undefined, normalizedEnd ?? undefined)) {
-    timeError.value = "End time must be after start time.";
+    timeError.value = t('itinerary.endTimeBeforeStart');
     return;
   }
   const sortRaw = sortOrder.value.trim();
@@ -67,7 +69,7 @@ function submit() {
   if (sortRaw) {
     const parsed = Number(sortRaw);
     if (!Number.isInteger(parsed) || parsed < 0) {
-      sortOrderError.value = "Sort order must be a non-negative integer.";
+      sortOrderError.value = t('itinerary.sortOrderInvalid');
       return;
     }
     sortOrderValue = parsed;
@@ -88,27 +90,27 @@ function submit() {
 <template>
   <div class="space-y-4">
     <div>
-      <div class="text-sm text-zinc-300">Date</div>
+      <div class="text-sm text-zinc-300">{{ $t('itinerary.date') }}</div>
       <div class="mt-1 rounded-xl bg-zinc-900 px-3 py-2 text-sm ring-1 ring-zinc-800">
         {{ dayDate }}
       </div>
     </div>
 
     <label class="block">
-      <div class="text-sm text-zinc-300">Title *</div>
+      <div class="text-sm text-zinc-300">{{ $t('itinerary.titleRequired') }}</div>
       <input
         v-model="title"
-        placeholder="e.g., Tottori Sand Dunes"
+        :placeholder="$t('itinerary.titlePlaceholder')"
         class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 outline-none ring-1 ring-zinc-800 focus:ring-zinc-600"
         :disabled="submitting"
         @keyup.enter="submit"
       />
-      <p v-if="!title.trim()" class="mt-1 text-xs text-zinc-500">Required</p>
+      <p v-if="!title.trim()" class="mt-1 text-xs text-zinc-500">{{ $t('itinerary.required') }}</p>
     </label>
 
     <div class="grid grid-cols-2 gap-3">
       <label class="block">
-        <div class="text-sm text-zinc-300">Start time</div>
+        <div class="text-sm text-zinc-300">{{ $t('itinerary.startTime') }}</div>
         <input
           v-model="startTime"
           type="time"
@@ -117,7 +119,7 @@ function submit() {
         />
       </label>
       <label class="block">
-        <div class="text-sm text-zinc-300">End time</div>
+        <div class="text-sm text-zinc-300">{{ $t('itinerary.endTime') }}</div>
         <input
           v-model="endTime"
           type="time"
@@ -128,45 +130,45 @@ function submit() {
     </div>
 
     <label class="block">
-      <div class="text-sm text-zinc-300">Location name</div>
+      <div class="text-sm text-zinc-300">{{ $t('itinerary.locationName') }}</div>
       <input
         v-model="locationName"
-        placeholder="e.g., 砂丘"
+        :placeholder="$t('itinerary.locationPlaceholder')"
         class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 outline-none ring-1 ring-zinc-800 focus:ring-zinc-600"
         :disabled="submitting"
       />
     </label>
 
     <label class="block">
-      <div class="text-sm text-zinc-300">Map URL</div>
+      <div class="text-sm text-zinc-300">{{ $t('itinerary.mapUrl') }}</div>
       <input
         v-model="mapUrl"
         placeholder="https://maps.google.com/..."
         class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 outline-none ring-1 ring-zinc-800 focus:ring-zinc-600"
         :disabled="submitting"
       />
-      <p class="mt-1 text-xs text-zinc-500">Optional. If provided, the list will show a “Map” button.</p>
+      <p class="mt-1 text-xs text-zinc-500">{{ $t('itinerary.mapUrlDesc') }}</p>
     </label>
 
     <label class="block">
-      <div class="text-sm text-zinc-300">Note</div>
+      <div class="text-sm text-zinc-300">{{ $t('itinerary.note') }}</div>
       <textarea
         v-model="note"
         rows="3"
-        placeholder="Any reminders..."
+        :placeholder="$t('itinerary.notePlaceholder')"
         class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 outline-none ring-1 ring-zinc-800 focus:ring-zinc-600"
         :disabled="submitting"
       />
     </label>
 
     <label class="block">
-      <div class="text-sm text-zinc-300">Sort order</div>
+      <div class="text-sm text-zinc-300">{{ $t('itinerary.sortOrder') }}</div>
       <input
         v-model="sortOrder"
         type="number"
         min="0"
         step="1"
-        placeholder="Optional"
+        :placeholder="$t('itinerary.optional')"
         class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 outline-none ring-1 ring-zinc-800 focus:ring-zinc-600"
         :disabled="submitting"
       />
@@ -181,14 +183,14 @@ function submit() {
         :disabled="submitting"
         @click="$emit('cancel')"
       >
-        Cancel
+        {{ $t('itinerary.cancel') }}
       </button>
       <button
         class="flex-1 rounded-xl bg-white px-4 py-2 text-sm font-medium text-zinc-900 disabled:opacity-60"
         :disabled="submitting || !title.trim()"
         @click="submit"
       >
-        {{ submitting ? "Saving..." : "Save" }}
+        {{ submitting ? $t('itinerary.saving') : $t('itinerary.save') }}
       </button>
     </div>
   </div>

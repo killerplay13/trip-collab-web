@@ -19,10 +19,12 @@ import BottomSheet from "../components/BottomSheet.vue";
 import ItineraryCreateForm from "../components/ItineraryCreateForm.vue";
 import ItineraryItemActions from "../components/ItineraryItemActions.vue";
 import { useTripAccess } from "../composables/useTripAccess";
+import { useI18n } from "vue-i18n";
 
 const route = useRoute();
 const router = useRouter();
 const { canEditData } = useTripAccess();
+const { t } = useI18n();
 
 const tripId = computed(() => String(route.params.tripId || ""));
 
@@ -86,7 +88,7 @@ async function load() {
     items.value = Array.isArray(res) ? res : [];
   } catch (e: any) {
     errorMsg.value =
-      e?.response?.data?.message ?? e?.message ?? "Failed to load itinerary";
+      e?.response?.data?.message ?? e?.message ?? t('itinerary.loadFailed');
     items.value = [];
   } finally {
     loading.value = false;
@@ -112,7 +114,7 @@ async function persistReorder(newItems: ItineraryItem[]) {
     );
   } catch (e: any) {
     reorderError.value =
-      e?.response?.data?.message ?? e?.message ?? "Failed to save order.";
+      e?.response?.data?.message ?? e?.message ?? t('itinerary.saveOrderFailed');
     await load();
   } finally {
     reordering.value = false;
@@ -195,7 +197,7 @@ async function handleCreate(payload: {
     await load(); // refresh list
   } catch (e: any) {
     createError.value =
-      e?.response?.data?.message ?? e?.message ?? "Create failed";
+      e?.response?.data?.message ?? e?.message ?? t('itinerary.createFailed');
   } finally {
     creating.value = false;
   }
@@ -225,7 +227,7 @@ async function handleEdit(payload: {
     await load();
   } catch (e: any) {
     createError.value =
-      e?.response?.data?.message ?? e?.message ?? "Update failed";
+      e?.response?.data?.message ?? e?.message ?? t('itinerary.updateFailed');
   } finally {
     creating.value = false;
   }
@@ -274,7 +276,7 @@ async function confirmDelete() {
     await load();
   } catch (e: any) {
     createError.value =
-      e?.response?.data?.message ?? e?.message ?? "Delete failed";
+      e?.response?.data?.message ?? e?.message ?? t('itinerary.deleteFailed');
   }
 }
 
@@ -311,7 +313,7 @@ async function confirmMove() {
     moveError.value =
       e?.response?.data?.message ??
       e?.message ??
-      "Move failed. Please try again.";
+      t('itinerary.moveFailed');
   } finally {
     moving.value = false;
   }
@@ -352,7 +354,7 @@ async function runPreview() {
     pasteError.value =
       e?.response?.data?.message ??
       e?.message ??
-      "Preview failed. Please try again.";
+      t('itinerary.previewFailed');
   } finally {
     pasteLoading.value = false;
   }
@@ -376,7 +378,7 @@ async function confirmPasteCreate() {
     pasteError.value =
       e?.response?.data?.message ??
       e?.message ??
-      "Paste failed. Please try again.";
+      t('itinerary.pasteFailed');
   } finally {
     pasteLoading.value = false;
   }
@@ -407,7 +409,7 @@ const debouncedSearch = debounce(async (q: string) => {
     searchError.value =
       e?.response?.data?.message ??
       e?.message ??
-      "Search failed. Please try again.";
+      t('itinerary.searchFailed');
     searchResults.value = [];
   } finally {
     if (seq === searchSeq) searchLoading.value = false;
@@ -446,247 +448,252 @@ watch(searchQuery, (value) => {
 </script>
 
 <template>
-  <div>
-    <div class="space-y-4">
-      <label class="block">
-        <div class="text-sm text-zinc-300">Search</div>
-        <div class="relative mt-1">
-          <input
-            v-model="searchQuery"
-            placeholder="Search itinerary (title, location, note)..."
-            class="w-full rounded-xl bg-zinc-900 px-3 py-2 text-sm ring-1 ring-zinc-800 focus:ring-zinc-600"
-          />
+  <div class="pb-24">
+    <!-- Header Area -->
+    <div class="sticky top-0 z-20 -mx-4 px-4 pt-6 pb-4 bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800/50">
+      <!-- Search Bar -->
+      <div class="space-y-4 mb-4">
+        <label class="block">
+          <div class="relative">
+            <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+              <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+            <input
+              v-model="searchQuery"
+              :placeholder="$t('itinerary.searchPlaceholder')"
+              class="w-full rounded-2xl bg-zinc-900/60 pl-10 pr-10 py-3 text-sm text-zinc-100 placeholder-zinc-500 ring-1 ring-zinc-800/80 focus:ring-emerald-500/50 focus:bg-zinc-900 transition-all shadow-inner"
+            />
+            <button
+              v-if="searchQuery"
+              class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-zinc-200"
+              @click="searchQuery = ''"
+              type="button"
+              aria-label="Clear search"
+            >
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+          </div>
+        </label>
+        <div v-if="searchLoading" class="text-xs font-medium text-emerald-400 flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></div>{{ $t('itinerary.searching') }}</div>
+        <div v-else-if="searchError" class="text-xs text-red-400 bg-red-400/10 p-2 rounded-lg">{{ searchError }}</div>
+      </div>
+
+      <!-- Date Navigator (only when not searching) -->
+      <div v-if="!searchMode" class="flex items-center justify-between">
+        <div class="flex flex-col">
+          <h1 class="text-2xl font-bold tracking-tight text-gradient">{{ $t('itinerary.itineraryTitle') }}</h1>
+          <p class="mt-0.5 text-sm font-medium text-emerald-400">{{ selectedDate }}</p>
+        </div>
+
+        <div class="flex gap-2">
           <button
-            v-if="searchQuery"
-            class="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400"
-            @click="searchQuery = ''"
-            type="button"
-            aria-label="Clear search"
+            class="w-10 h-10 flex items-center justify-center rounded-xl bg-zinc-900/80 text-zinc-300 ring-1 ring-zinc-800 transition-all hover:bg-zinc-800 hover:text-white active:scale-95 shadow-sm"
+            @click="prevDay"
           >
-            ×
+            <el-icon><ArrowLeft /></el-icon>
+          </button>
+          <button
+            class="w-10 h-10 flex items-center justify-center rounded-xl bg-zinc-900/80 text-zinc-300 ring-1 ring-zinc-800 transition-all hover:bg-zinc-800 hover:text-white active:scale-95 shadow-sm"
+            @click="nextDay"
+          >
+            <el-icon><ArrowRight /></el-icon>
           </button>
         </div>
-      </label>
-      <div v-if="searchLoading" class="text-xs text-zinc-500">Searching...</div>
-      <div v-else-if="searchError" class="text-xs text-red-300">
-        {{ searchError }}
       </div>
     </div>
 
-    <div v-if="searchMode" class="mt-4">
+    <!-- Search Results -->
+    <div v-if="searchMode" class="mt-4 animate-fade-in-up">
       <div
         v-if="searchResults.length === 0 && !searchLoading"
-        class="rounded-2xl bg-zinc-900 p-4 ring-1 ring-zinc-800"
+        class="glass-card p-8 text-center"
       >
-        <p class="text-sm text-zinc-300">No results.</p>
+        <p class="text-sm font-medium text-zinc-400">{{ $t('itinerary.noResults') }}</p>
       </div>
 
       <div v-else class="space-y-3">
         <button
           v-for="it in searchResults"
           :key="it.id"
-          class="w-full rounded-2xl bg-zinc-900 p-4 text-left ring-1 ring-zinc-800"
+          class="w-full text-left glass-card p-4 transition-all hover:ring-1 hover:ring-zinc-600 hover:-translate-y-0.5"
           @click="selectSearchResult(it)"
         >
-          <div class="flex items-center justify-between gap-3">
-            <div class="text-base font-medium text-zinc-100">
-              {{ it.title ?? "Untitled" }}
+          <div class="flex items-start justify-between gap-3">
+            <div class="text-base font-semibold text-zinc-100">
+              {{ it.title ?? $t('itinerary.untitled') }}
             </div>
-            <div class="text-xs text-zinc-500">{{ it.dayDate }}</div>
+            <div class="text-xs font-mono px-2 py-1 rounded-md bg-zinc-800 text-zinc-400">{{ it.dayDate }}</div>
           </div>
-          <div v-if="formatTimeRange(it)" class="mt-1 text-sm text-zinc-400">
+          <div v-if="formatTimeRange(it)" class="mt-2 inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-400 ring-1 ring-emerald-500/20">
             {{ formatTimeRange(it) }}
           </div>
-          <div v-if="it.locationName" class="mt-1 text-sm text-zinc-400">
+          <div v-if="it.locationName" class="mt-2 text-sm text-zinc-400 flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
             {{ it.locationName }}
           </div>
         </button>
       </div>
     </div>
 
-    <div v-else class="mt-4">
-      <div class="flex items-center justify-between">
-        <div>
-          <h1 class="text-xl font-semibold">Itinerary</h1>
-          <p class="mt-1 text-sm text-zinc-400">{{ selectedDate }}</p>
-        </div>
+    <!-- Itinerary List -->
+    <div v-else class="mt-6 relative">
+      <!-- Vertical timeline line -->
+      <div v-if="items.length > 0 && !loading" class="absolute left-[27px] top-4 bottom-4 w-0.5 bg-zinc-800/50 rounded-full z-0"></div>
 
-        <div class="flex gap-2">
-          <el-button
-            size="small"
-            class="bg-zinc-900 ring-1 ring-zinc-800 transition-colors duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
-            :icon="ArrowLeft"
-            @click="prevDay"
-          />
-          <el-button
-            size="small"
-            class="bg-zinc-900 ring-1 ring-zinc-800 transition-colors duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
-            :icon="ArrowRight"
-            @click="nextDay"
-          />
+      <div
+        v-if="loading"
+        class="space-y-4"
+      >
+        <div v-for="i in 3" :key="i" class="glass-card h-24 animate-pulse"></div>
+      </div>
+
+      <div
+        v-else-if="errorMsg"
+        class="glass-card p-5 text-center"
+      >
+        <p class="text-sm font-medium text-red-400 mb-4">{{ errorMsg }}</p>
+        <button
+          class="rounded-xl bg-zinc-800 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-zinc-700 active:scale-95"
+          @click="load"
+        >
+          {{ $t('itinerary.retry') }}
+        </button>
+      </div>
+
+      <div
+        v-else-if="items.length === 0"
+        class="mt-10 animate-fade-in-up"
+      >
+        <div class="flex flex-col items-center text-center p-8 glass-card border-dashed border-2 border-zinc-800 bg-transparent shadow-none">
+          <div class="mb-5 w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center ring-4 ring-zinc-950 shadow-inner">
+            <el-icon size="28" class="text-zinc-500">
+              <Calendar />
+            </el-icon>
+          </div>
+          <div class="text-lg font-bold text-zinc-200">
+            {{ $t('itinerary.noEvents') }}
+          </div>
+          <div class="mt-2 text-sm text-zinc-500 leading-relaxed max-w-[250px]">
+            {{ $t('itinerary.noEventsDesc') }}
+          </div>
+          <div v-if="canEditData" class="mt-6 flex gap-3 w-full justify-center">
+            <button
+              class="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95"
+              @click="openCreate"
+            >
+              <el-icon><Plus /></el-icon> Add
+            </button>
+            <button
+              class="flex items-center gap-2 rounded-xl bg-zinc-800 px-5 py-2.5 text-sm font-semibold text-zinc-200 ring-1 ring-zinc-700 transition-all hover:bg-zinc-700 active:scale-95"
+              @click="openPaste"
+            >
+              <el-icon><DocumentAdd /></el-icon> Paste
+            </button>
+          </div>
         </div>
       </div>
 
-      <div class="mt-4">
-        <div
-          v-if="loading"
-          class="rounded-2xl bg-zinc-900 p-4 ring-1 ring-zinc-800"
-        >
-          <p class="text-sm text-zinc-300">Loading...</p>
+      <div v-else class="space-y-4">
+        <div v-if="reordering" class="text-xs font-medium text-emerald-400 text-center animate-pulse">
+          {{ $t('itinerary.savingOrder') }}
         </div>
-
-        <div
-          v-else-if="errorMsg"
-          class="rounded-2xl bg-zinc-900 p-4 ring-1 ring-zinc-800"
-        >
-          <p class="text-sm text-red-300">{{ errorMsg }}</p>
-          <button
-            class="mt-3 rounded-xl bg-white px-3 py-2 text-sm font-medium text-zinc-900"
-            @click="load"
-          >
-            Retry
-          </button>
+        <div v-else-if="reorderError" class="text-xs text-red-400 text-center bg-red-400/10 p-2 rounded-lg">
+          {{ reorderError }}
         </div>
-
-        <div
-          v-else-if="items.length === 0"
-          class="rounded-2xl bg-zinc-900/60 p-6 ring-1 ring-zinc-800/50"
-        >
-          <div class="flex flex-col items-center text-center">
-            <div class="mb-3 rounded-2xl bg-zinc-900/70 p-4 ring-1 ring-zinc-800/50">
-              <el-icon size="28">
-                <Calendar />
-              </el-icon>
-            </div>
-            <div class="text-base font-semibold text-zinc-100">
-              No itinerary for this day
-            </div>
-            <div class="mt-1 text-sm text-zinc-400">
-              {{ canEditData ? "Add an item or paste a plan to get started." : "View only. You need trip access to edit this itinerary." }}
-            </div>
-            <div v-if="canEditData" class="mt-4 flex gap-2">
-              <el-button
-                size="small"
-                type="primary"
-                :icon="Plus"
-                class="transition-colors duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
-                @click="openCreate"
-              >
-                Add
-              </el-button>
-              <el-button
-                size="small"
-                :icon="DocumentAdd"
-                class="bg-zinc-900/70 text-zinc-200 ring-1 ring-zinc-800/60 transition-colors duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
-                @click="openPaste"
-              >
-                Paste
-              </el-button>
-            </div>
-          </div>
+        <div v-if="!canEditData" class="text-xs text-zinc-500 text-center mb-4 bg-zinc-900/50 py-2 rounded-lg border border-zinc-800">
+          {{ $t('itinerary.viewOnly') }}
         </div>
+        
+        <div
+          v-for="(it, idx) in items"
+          :key="it.id"
+          class="relative group animate-fade-in-up"
+          :style="{ animationDelay: `${idx * 50}ms` }"
+        >
+          <!-- Timeline dot -->
+          <div class="absolute left-6 top-5 w-3 h-3 rounded-full bg-zinc-700 ring-4 ring-zinc-950 z-10 group-hover:bg-emerald-400 transition-colors shadow-[0_0_10px_rgba(52,211,153,0)] group-hover:shadow-[0_0_10px_rgba(52,211,153,0.5)]"></div>
 
-        <div v-else class="space-y-3">
-          <div v-if="reordering" class="text-xs text-zinc-500">
-            Saving order...
-          </div>
-          <div v-else-if="reorderError" class="text-xs text-red-300">
-            {{ reorderError }}
-          </div>
-          <div v-if="!canEditData" class="text-xs text-zinc-500">
-            View only. You need trip access to edit this itinerary.
-          </div>
-          <div
-            v-for="(it, idx) in items"
-            :key="it.id"
-            class="rounded-2xl bg-zinc-900/70 p-4 ring-1 ring-zinc-800/60 transition-colors duration-150 hover:ring-zinc-700/70"
-          >
+          <div class="ml-14 glass-card p-4 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-xl group-hover:shadow-black/40 group-hover:border-zinc-700/50">
             <!-- Header / Content -->
             <div class="flex items-start gap-3">
-              <!-- Left: Main info -->
               <div class="min-w-0 flex-1">
-                <!-- time badge + title -->
-                <div class="flex flex-wrap items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2 mb-1.5">
                   <span
                     v-if="formatTimeRange(it)"
-                    class="inline-flex items-center rounded-full bg-zinc-800/60 px-2 py-0.5 text-xs font-medium text-zinc-200 ring-1 ring-zinc-700/50"
+                    class="inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-400 border border-emerald-500/20"
                   >
                     {{ formatTimeRange(it) }}
                   </span>
-
-                  <div
-                    class="min-w-0 truncate text-base font-semibold text-zinc-100"
-                  >
-                    {{ it.title ?? "Untitled" }}
-                  </div>
                 </div>
 
-                <!-- location -->
+                <div class="min-w-0 truncate text-lg font-bold text-zinc-100 mb-1">
+                  {{ it.title ?? $t('itinerary.untitled') }}
+                </div>
+
                 <div
                   v-if="it.locationName"
-                  class="mt-1 flex items-center gap-1.5 text-sm text-zinc-500"
+                  class="mt-2 flex items-center gap-1.5 text-sm text-zinc-400"
                 >
-                  <span class="inline-flex">
-                    <!-- small dot icon feel; keep simple to avoid extra icon dependency -->
-                    <span class="h-1.5 w-1.5 rounded-full bg-zinc-600/70"></span>
-                  </span>
+                  <svg class="w-4 h-4 text-zinc-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                   <span class="truncate">{{ it.locationName }}</span>
                 </div>
 
-                <!-- note -->
                 <div
                   v-if="it.note"
-                  class="mt-2 text-sm text-zinc-300 whitespace-pre-line"
+                  class="mt-3 text-sm text-zinc-300 whitespace-pre-line leading-relaxed bg-zinc-900/50 p-3 rounded-xl border border-zinc-800/50"
                 >
                   {{ it.note }}
                 </div>
               </div>
-
             </div>
 
-            <ItineraryItemActions
-              v-if="canEditData"
-              :item="it"
-              :idx="idx"
-              :total="items.length"
-              :reordering="reordering"
-              @move-up="moveUp"
-              @move-down="moveDown"
-              @move="askMove"
-              @edit="openEdit"
-              @delete="askDelete"
-            />
+            <div class="mt-4 pt-3 border-t border-zinc-800/50 opacity-60 transition-opacity group-hover:opacity-100">
+              <ItineraryItemActions
+                v-if="canEditData"
+                :item="it"
+                :idx="idx"
+                :total="items.length"
+                :reordering="reordering"
+                @move-up="moveUp"
+                @move-down="moveDown"
+                @move="askMove"
+                @edit="openEdit"
+                @delete="askDelete"
+              />
+            </div>
           </div>
         </div>
       </div>
-      <!-- Floating Add/Paste Buttons -->
-      <div
-        v-if="canEditData"
-        class="fixed bottom-24 right-4 z-40 flex gap-2"
-        style="margin-bottom: env(safe-area-inset-bottom)"
-      >
-        <el-button
-          size="default"
-          class="bg-zinc-900 text-zinc-100 ring-1 ring-zinc-800 transition-colors duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
-          :icon="DocumentAdd"
+    </div>
+
+    <!-- Floating Action Buttons -->
+    <div
+      v-if="canEditData"
+      class="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 animate-fade-in-up"
+      style="animation-delay: 300ms;"
+    >
+      <div class="glass flex items-center p-1.5 rounded-full shadow-2xl shadow-emerald-500/20">
+        <button
+          class="flex items-center justify-center rounded-full w-10 h-10 text-zinc-300 transition-all hover:text-white hover:bg-zinc-800/50 active:scale-95"
           @click="openPaste"
+          :title="$t('itinerary.pasteItinerary')"
         >
-          Paste
-        </el-button>
-        <el-button
-          size="default"
-          type="primary"
-          circle
-          :icon="Plus"
-          class="transition-colors duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+          <el-icon size="18"><DocumentAdd /></el-icon>
+        </button>
+        <div class="w-px h-6 bg-zinc-700/50 mx-1"></div>
+        <button
+          class="flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-105 active:scale-95"
           @click="openCreate"
-        />
+        >
+          <el-icon size="18"><Plus /></el-icon> {{ $t('itinerary.add') }}
+        </button>
       </div>
+    </div>
 
       <BottomSheet
         :open="sheetOpen"
         :title="
-          sheetMode === 'edit' ? 'Edit itinerary item' : 'Add itinerary item'
+          sheetMode === 'edit' ? $t('itinerary.editItem') : $t('itinerary.addItem')
         "
         @close="resetSheet"
       >
@@ -721,7 +728,7 @@ watch(searchQuery, (value) => {
 
         <div class="space-y-4">
           <label class="block">
-            <div class="text-sm text-zinc-300">Date</div>
+            <div class="text-sm text-zinc-300">{{ $t('itinerary.date') }}</div>
             <input
               v-model="pasteDayDate"
               type="date"
@@ -731,11 +738,11 @@ watch(searchQuery, (value) => {
           </label>
 
           <label class="block">
-            <div class="text-sm text-zinc-300">Paste text</div>
+            <div class="text-sm text-zinc-300">{{ $t('itinerary.pasteTextLabel') }}</div>
             <textarea
               v-model="pasteText"
               rows="6"
-              placeholder="09:00 Breakfast at hotel\n10:30 Museum visit"
+              :placeholder="$t('itinerary.pasteTextPlaceholder')"
               class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 text-sm ring-1 ring-zinc-800 focus:ring-zinc-600"
               :disabled="pasteLoading"
             />
@@ -747,7 +754,7 @@ watch(searchQuery, (value) => {
               :disabled="pasteLoading"
               @click="runPreview"
             >
-              {{ pasteLoading ? "Previewing..." : "Preview" }}
+              {{ pasteLoading ? $t('itinerary.previewing') : $t('itinerary.preview') }}
             </button>
             <button
               class="flex-1 rounded-xl bg-white px-4 py-2 text-sm font-medium text-zinc-900 disabled:opacity-60"
@@ -759,7 +766,7 @@ watch(searchQuery, (value) => {
               "
               @click="confirmPasteCreate"
             >
-              Create
+              {{ $t('itinerary.create') }}
             </button>
           </div>
 
@@ -768,11 +775,11 @@ watch(searchQuery, (value) => {
             :disabled="pasteLoading"
             @click="closePaste"
           >
-            Cancel
+            {{ $t('itinerary.cancel') }}
           </button>
 
           <div v-if="pastePreview" class="space-y-3">
-            <div class="text-xs text-zinc-500">Parsed items</div>
+            <div class="text-xs text-zinc-500">{{ $t('itinerary.parsedItems') }}</div>
             <div class="space-y-2">
               <div
                 v-for="item in pastePreview.items"
@@ -823,11 +830,11 @@ watch(searchQuery, (value) => {
         <div
           class="w-full max-w-sm rounded-2xl bg-zinc-950 p-4 ring-1 ring-zinc-800"
         >
-          <h2 class="text-base font-semibold text-zinc-100">Delete item?</h2>
+          <h2 class="text-base font-semibold text-zinc-100">{{ $t('itinerary.deleteConfirmTitle') }}</h2>
           <p class="mt-2 text-sm text-zinc-400">
-            This will delete
+            {{ $t('itinerary.deleteConfirmDesc') }}
             <span class="text-zinc-100">{{
-              deletingItem.title || "Untitled"
+              deletingItem.title || $t('itinerary.untitled')
             }}</span
             >.
           </p>
@@ -836,13 +843,13 @@ watch(searchQuery, (value) => {
               class="flex-1 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium ring-1 ring-zinc-800"
               @click="deletingItem = null"
             >
-              Cancel
+              {{ $t('itinerary.cancel') }}
             </button>
             <button
               class="flex-1 rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white"
               @click="confirmDelete"
             >
-              Delete
+              {{ $t('itinerary.deleteBtn') }}
             </button>
           </div>
         </div>
@@ -855,15 +862,15 @@ watch(searchQuery, (value) => {
         <div
           class="w-full max-w-sm rounded-2xl bg-zinc-950 p-4 ring-1 ring-zinc-800"
         >
-          <h2 class="text-base font-semibold text-zinc-100">Move item</h2>
+          <h2 class="text-base font-semibold text-zinc-100">{{ $t('itinerary.moveTitle') }}</h2>
           <p class="mt-2 text-sm text-zinc-400">
-            Moving
+            {{ $t('itinerary.movingDesc') }}
             <span class="text-zinc-100">{{
-              movingItem.title || "Untitled"
+              movingItem.title || $t('itinerary.untitled')
             }}</span>
           </p>
           <label class="mt-4 block">
-            <div class="text-sm text-zinc-300">To date</div>
+            <div class="text-sm text-zinc-300">{{ $t('itinerary.toDate') }}</div>
             <input
               v-model="moveToDate"
               type="date"
@@ -880,7 +887,7 @@ watch(searchQuery, (value) => {
               :disabled="moving"
               @click="cancelMove"
             >
-              Cancel
+              {{ $t('itinerary.cancel') }}
             </button>
             <button
               class="flex-1 rounded-xl bg-white px-4 py-2 text-sm font-medium text-zinc-900 disabled:opacity-60"
@@ -891,11 +898,10 @@ watch(searchQuery, (value) => {
               "
               @click="confirmMove"
             >
-              {{ moving ? "Moving..." : "Move" }}
+              {{ moving ? $t('itinerary.movingBtn') : $t('itinerary.moveBtn') }}
             </button>
           </div>
         </div>
       </div>
-    </div>
   </div>
 </template>

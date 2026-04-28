@@ -1,43 +1,188 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
 import { useTripAccess } from "../composables/useTripAccess";
+import BottomSheet from "../components/BottomSheet.vue";
+import { getSettlements, createExpense } from "../api/expenses";
+import type { ExpenseSettlement } from "../api/expenses";
 
 const route = useRoute();
 const tripId = computed(() => String(route.params.tripId || ""));
 const { isOwner, role } = useTripAccess();
+
+const loading = ref(false);
+const errorMsg = ref("");
+const settlements = ref<ExpenseSettlement[]>([]);
+const sheetOpen = ref(false);
+const settling = ref(false);
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function toYmd(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function formatMoney(amount: number, currency = "TWD") {
+  return new Intl.NumberFormat("zh-TW", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+async function loadSettlements() {
+  if (!tripId.value) return;
+  loading.value = true;
+  errorMsg.value = "";
+  try {
+    const list = await getSettlements(tripId.value);
+    settlements.value = Array.isArray(list) ? list : [];
+  } catch (e: any) {
+    errorMsg.value = e?.response?.data?.message ?? e?.message ?? "Failed to load settlements";
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function openReview() {
+  sheetOpen.value = true;
+  await loadSettlements();
+}
+
+function closeReview() {
+  sheetOpen.value = false;
+}
+
+async function handleSettle(item: ExpenseSettlement) {
+  if (!tripId.value || settling.value) return;
+  settling.value = true;
+  errorMsg.value = "";
+  try {
+    await createExpense(tripId.value, {
+      title: "Settle Up",
+      amount: item.amount,
+      expenseDate: toYmd(new Date()),
+      paidByMemberId: item.fromMemberId,
+      participantMemberIds: [item.toMemberId]
+    });
+    await loadSettlements();
+  } catch (e: any) {
+    errorMsg.value = e?.response?.data?.message ?? e?.message ?? "Failed to settle up";
+  } finally {
+    settling.value = false;
+  }
+}
 </script>
 
 <template>
-  <div>
-    <h1 class="text-xl font-semibold">Settlement</h1>
-    <p class="mt-2 text-sm text-zinc-400">tripId: {{ tripId }}</p>
+  <div class="pb-24 animate-fade-in-up">
+    <div class="flex flex-col items-center pt-6 pb-8 text-center">
+      <div class="w-16 h-16 rounded-full bg-indigo-500/10 flex items-center justify-center mb-4 ring-1 ring-indigo-500/20 shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+        <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"></path></svg>
+      </div>
+      <h1 class="text-3xl font-bold tracking-tight text-gradient">{{ $t('settlement.title') }}</h1>
+      <p class="mt-2 text-xs font-mono text-zinc-500 bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800">ID: {{ tripId }}</p>
+    </div>
 
-    <div class="mt-4 rounded-2xl bg-zinc-900 p-4 ring-1 ring-zinc-800">
-      <div class="text-sm text-zinc-400">Access</div>
-      <div class="mt-1 text-sm text-zinc-200">
-        {{ role || "member" }}
+    <div class="glass-card p-6 mb-5" style="animation-delay: 50ms;">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path></svg>
+        </div>
+        <div>
+          <div class="text-xs font-semibold tracking-wider text-zinc-500 uppercase">{{ $t('settlement.accessLevel') }}</div>
+          <div class="mt-1 text-lg font-bold" :class="role === 'owner' ? 'text-indigo-400' : 'text-zinc-200'">
+            {{ role === 'owner' ? $t('settlement.owner') : $t('settlement.member') }}
+          </div>
+        </div>
       </div>
     </div>
 
     <div
       v-if="isOwner"
-      class="mt-4 rounded-2xl bg-zinc-900 p-4 ring-1 ring-zinc-800"
+      class="glass-card p-6 border border-indigo-500/20 shadow-[0_0_30px_rgba(99,102,241,0.05)]"
+      style="animation-delay: 100ms;"
     >
-      <div class="text-sm text-zinc-400">Owner Controls</div>
-      <div class="mt-1 text-sm text-zinc-200">
-        Settlement actions stay owner-only in this view.
+      <div class="flex items-center gap-2 mb-2">
+        <div class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
+        <div class="text-sm font-semibold tracking-wider text-indigo-400 uppercase">{{ $t('settlement.ownerControls') }}</div>
       </div>
+      <div class="text-sm text-zinc-400 leading-relaxed">
+        {{ $t('settlement.ownerDesc') }}
+      </div>
+      <button 
+        class="mt-4 w-full py-3 rounded-xl bg-indigo-500/10 text-indigo-400 font-semibold border border-indigo-500/20 transition-all hover:bg-indigo-500/20 active:scale-95"
+        @click="openReview"
+      >
+        {{ $t('settlement.reviewBtn') }}
+      </button>
     </div>
 
     <div
       v-else
-      class="mt-4 rounded-2xl bg-zinc-900 p-4 ring-1 ring-zinc-800"
+      class="glass-card p-6"
+      style="animation-delay: 100ms;"
     >
-      <div class="text-sm text-zinc-400">Member View</div>
-      <div class="mt-1 text-sm text-zinc-300">
-        Only the trip owner can manage settlement actions.
+      <div class="flex items-center gap-2 mb-2">
+        <svg class="w-5 h-5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+        <div class="text-sm font-semibold tracking-wider text-zinc-400 uppercase">{{ $t('settlement.memberView') }}</div>
+      </div>
+      <div class="text-sm text-zinc-400 leading-relaxed">
+        {{ $t('settlement.memberDesc') }}
       </div>
     </div>
+
+    <!-- Review Settlements Bottom Sheet -->
+    <BottomSheet
+      :open="sheetOpen"
+      :title="$t('settlement.reviewBtn')"
+      @close="closeReview"
+    >
+      <div v-if="errorMsg" class="mb-4 rounded-xl bg-red-400/10 p-3 ring-1 ring-red-400/20">
+        <p class="text-sm font-medium text-red-400">{{ errorMsg }}</p>
+      </div>
+
+      <div v-if="loading" class="space-y-3">
+        <div v-for="i in 2" :key="i" class="glass-card h-20 animate-pulse"></div>
+      </div>
+      
+      <div v-else-if="settlements.length === 0" class="glass-card p-6 text-center border-dashed border-2 bg-transparent shadow-none">
+        <p class="text-sm font-medium text-zinc-500">{{ $t('expenses.allSquaredUp') }}</p>
+      </div>
+
+      <div v-else class="space-y-4">
+        <div
+          v-for="(item, idx) in settlements"
+          :key="`${item.fromMemberId}-${item.toMemberId}-${idx}`"
+          class="glass-card p-4 flex flex-col gap-4"
+        >
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-300">
+                {{ (item.from || item.fromMemberId || "-").charAt(0).toUpperCase() }}
+              </div>
+              <div class="text-zinc-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+              </div>
+              <div class="w-8 h-8 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-xs font-bold text-purple-400">
+                {{ (item.to || item.toMemberId || "-").charAt(0).toUpperCase() }}
+              </div>
+            </div>
+            <div class="text-lg font-bold text-zinc-100">
+              {{ formatMoney(item.amount, item.currency || "TWD") }}
+            </div>
+          </div>
+          <button
+            class="w-full py-2 rounded-xl bg-indigo-500/20 text-indigo-300 font-semibold text-sm transition-all hover:bg-indigo-500/30 active:scale-95 disabled:opacity-50"
+            :disabled="settling"
+            @click="handleSettle(item)"
+          >
+            {{ settling ? "Settling..." : "Settle Up" }}
+          </button>
+        </div>
+      </div>
+    </BottomSheet>
   </div>
 </template>

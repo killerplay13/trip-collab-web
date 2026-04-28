@@ -30,3 +30,16 @@ export async function getTripMembers(tripId: string): Promise<TripMember[]> {
     .filter((member: TripMember | null): member is TripMember => Boolean(member))
     .filter((member: TripMember) => member.isActive);
 }
+
+export type UpdateMemberPayload = {
+  nickname?: string;
+  isActive?: boolean;
+};
+
+export async function updateTripMember(tripId: string, memberId: string, payload: UpdateMemberPayload): Promise<TripMember> {
+  const res = await api.patch(`/api/trips/${tripId}/members/${memberId}`, payload);
+  const data = res.data;
+  const normalized = normalizeTripMember(data);
+  if (!normalized) throw new Error("Failed to parse member response");
+  return normalized;
+}
