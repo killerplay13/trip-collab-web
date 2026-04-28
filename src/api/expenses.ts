@@ -8,11 +8,14 @@ export type ExpenseItem = {
   paidByMemberId?: string | null;
   participantMemberIds?: string[];
   currency?: string | null;
+  category?: string | null;
   paymentSource?: string | null;
   splitMethod?: string | null;
   originalAmount?: number | null;
   originalCurrency?: string | null;
   fxRate?: number | null;
+  fxSource?: string | null;
+  customSplits?: Array<{ memberId: string, amount: number }>;
 };
 
 export type ExpenseGroup = {
@@ -40,6 +43,11 @@ export type CreateExpensePayload = {
   originalAmount?: number;
   originalCurrency?: string;
   fxRate?: number;
+  fxSource?: string;
+  category?: string;
+  paymentSource?: string;
+  splitMethod?: string;
+  customSplits?: Array<{ memberId: string, amount: number }>;
 };
 
 export type ExpenseSettlement = {
@@ -65,6 +73,21 @@ function toNumber(value: unknown): number {
   return 0;
 }
 
+const validExpenseCategories = new Set([
+  "FOOD",
+  "CLOTHING",
+  "LODGING",
+  "TRANSPORT",
+  "ENTERTAINMENT",
+  "OTHER",
+]);
+
+function normalizeExpenseCategory(value: unknown): string {
+  if (typeof value !== "string") return "OTHER";
+  const normalized = value.trim().toUpperCase();
+  return validExpenseCategories.has(normalized) ? normalized : "OTHER";
+}
+
 function normalizeExpenseItem(raw: any): ExpenseItem {
   const participantMemberIds = Array.isArray(raw?.participantMemberIds)
     ? raw.participantMemberIds
@@ -79,11 +102,13 @@ function normalizeExpenseItem(raw: any): ExpenseItem {
     paidByMemberId: raw?.paidByMemberId ?? raw?.paid_by_member_id ?? null,
     participantMemberIds: participantMemberIds.map((id: unknown) => String(id ?? "")).filter(Boolean),
     currency: raw?.currency ?? null,
+    category: normalizeExpenseCategory(raw?.category ?? raw?.expense_category),
     paymentSource: raw?.paymentSource ?? raw?.payment_source ?? null,
     splitMethod: raw?.splitMethod ?? raw?.split_method ?? null,
     originalAmount: raw?.originalAmount ?? raw?.original_amount ?? null,
     originalCurrency: raw?.originalCurrency ?? raw?.original_currency ?? null,
     fxRate: raw?.fxRate ?? raw?.fx_rate ?? null,
+    fxSource: raw?.fxSource ?? raw?.fx_source ?? null,
   };
 }
 
@@ -96,6 +121,14 @@ function normalizeExpenseGroup(raw: any): ExpenseGroup {
 }
 
 function normalizeExpenseSummary(raw: any): ExpenseSummary {
+  if (Array.isArray(raw)) {
+    const members = raw.map(normalizeExpenseMember).filter(Boolean) as ExpenseMember[];
+    return {
+      currency: raw.find((item) => item?.currency)?.currency ?? null,
+      members: dedupeMembers(members),
+    };
+  }
+
   const settlements = Array.isArray(raw?.settlements) ? raw.settlements.map(normalizeExpenseSettlement) : [];
   const members = dedupeMembers([
     ...extractMembers(raw?.members),
@@ -211,8 +244,10 @@ export async function createExpense(tripId: string, payload: CreateExpensePayloa
     expenseDate: payload.expenseDate,
     paidByMemberId: payload.paidByMemberId,
     participantMemberIds: payload.participantMemberIds,
-    paymentSource: "PERSONAL",
-    splitMethod: "EQUAL",
+    category: normalizeExpenseCategory(payload.category),
+    paymentSource: payload.paymentSource || "PERSONAL",
+    splitMethod: payload.splitMethod || "EQUAL",
+    customSplits: payload.customSplits,
   };
   
   if (payload.originalAmount !== undefined && payload.originalCurrency !== undefined && payload.fxRate !== undefined) {
@@ -220,6 +255,7 @@ export async function createExpense(tripId: string, payload: CreateExpensePayloa
       amount: payload.originalAmount,
       currency: payload.originalCurrency,
       fxRate: payload.fxRate,
+      fxSource: payload.fxSource,
     };
   }
 
@@ -236,8 +272,10 @@ export async function updateExpense(tripId: string, expenseId: string, payload: 
     expenseDate: payload.expenseDate,
     paidByMemberId: payload.paidByMemberId,
     participantMemberIds: payload.participantMemberIds,
-    paymentSource: "PERSONAL",
-    splitMethod: "EQUAL",
+    category: normalizeExpenseCategory(payload.category),
+    paymentSource: payload.paymentSource || "PERSONAL",
+    splitMethod: payload.splitMethod || "EQUAL",
+    customSplits: payload.customSplits,
   };
   
   if (payload.originalAmount !== undefined && payload.originalCurrency !== undefined && payload.fxRate !== undefined) {
@@ -245,6 +283,7 @@ export async function updateExpense(tripId: string, expenseId: string, payload: 
       amount: payload.originalAmount,
       currency: payload.originalCurrency,
       fxRate: payload.fxRate,
+      fxSource: payload.fxSource,
     };
   }
 
@@ -256,4 +295,12 @@ export async function updateExpense(tripId: string, expenseId: string, payload: 
 
 export async function deleteExpense(tripId: string, expenseId: string): Promise<void> {
   await api.delete(`/api/trips/${tripId}/expenses/${expenseId}`);
+}
+export async function getExpenseDetail(tripId: string, expenseId: string): Promise<{ expense: ExpenseItem, splits: any[] }> {
+  const res = await api.get(`/api/trips/${tripId}/expenses/${expenseId}`);
+  const data = res.data as any;
+  return {
+    expense: normalizeExpenseItem(data.expense),
+    splits: data.splits || [],
+  };
 }

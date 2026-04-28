@@ -3,7 +3,7 @@ import { computed } from "vue";
 import type { Component } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { Calendar, HomeFilled, Money, ScaleToOriginal } from "@element-plus/icons-vue";
+import { Calendar, HomeFilled, Money, ScaleToOriginal, Wallet } from "@element-plus/icons-vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -17,6 +17,7 @@ const tabs = computed<Tab[]>(() => [
   { label: t("nav.home"), to: (id) => `/t/${id}`, icon: HomeFilled },
   { label: t("nav.itinerary"), to: (id) => `/t/${id}/itinerary`, icon: Calendar },
   { label: t("nav.expenses"), to: (id) => `/t/${id}/expenses`, icon: Money },
+  { label: t("nav.wallet"), to: (id) => `/t/${id}/wallet`, icon: Wallet },
   { label: t("nav.settlement"), to: (id) => `/t/${id}/settlement`, icon: ScaleToOriginal },
 ]);
 

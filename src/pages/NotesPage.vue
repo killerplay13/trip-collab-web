@@ -7,7 +7,7 @@ import BottomSheet from "../components/BottomSheet.vue";
 import NoteForm from "../components/NoteForm.vue";
 
 const route = useRoute();
-const { t, locale } = useI18n();
+const { t } = useI18n();
 const tripId = computed(() => String(route.params.tripId || ""));
 
 const notes = ref<Note[]>([]);
@@ -148,10 +148,9 @@ onMounted(loadNotes);
       </div>
     </div>
 
-    <!-- Create/Edit Sheet -->
     <BottomSheet
       :open="sheetOpen"
-      :title="editingNote ? (locale === 'zh-TW' ? '編輯筆記' : 'Edit Note') : $t('notes.newNote')"
+      :title="editingNote ? $t('notes.editNote') : $t('notes.newNote')"
       @close="sheetOpen = false"
     >
       <NoteForm

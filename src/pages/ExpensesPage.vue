@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { useRoute } from "vue-router";
+import { computed, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { Plus } from "@element-plus/icons-vue";
 import BottomSheet from "../components/BottomSheet.vue";
 import ExpenseCreateForm from "../components/ExpenseCreateForm.vue";
-import { createExpense, updateExpense, deleteExpense, getExpensesAll, getExpenseSummary, getSettlements } from "../api/expenses";
+import { createExpense, updateExpense, deleteExpense, getExpensesAll, getExpenseSummary, getSettlements, getExpenseDetail } from "../api/expenses";
 import type { ExpenseGroup, ExpenseMember, ExpenseSettlement, ExpenseSummary, ExpenseItem } from "../api/expenses";
 import { getTripMembers } from "../api/tripMembers";
 import type { TripMember } from "../api/tripMembers";
 import { useTripAccess } from "../composables/useTripAccess";
+import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { useI18n } from "vue-i18n";
 
 const route = useRoute();
+const router = useRouter();
 const { isOwner, isMember } = useTripAccess();
 const tripId = computed(() => String(route.params.tripId || ""));
 const { t } = useI18n();
@@ -27,6 +29,7 @@ const tripMembers = ref<TripMember[]>([]);
 const sheetOpen = ref(false);
 const defaultExpenseDate = ref(toYmd(new Date()));
 const editingExpense = ref<ExpenseItem | undefined>(undefined);
+const prefillExpenseTitle = ref("");
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -53,6 +56,66 @@ function formatMoney(value: unknown, currency = "TWD") {
     currency,
     maximumFractionDigits: 2,
   }).format(amount);
+}
+
+function formatPaymentSource(source: string | null | undefined) {
+  if (!source) return t("expenses.personal");
+  return source === "SHARED_WALLET" ? t("expenses.sharedWalletShort") : t("expenses.personal");
+}
+
+function formatSplitMethod(method: string | null | undefined) {
+  if (method === "CUSTOM_AMOUNT") return t("expenses.splitCustom");
+  return t("expenses.splitEqual");
+}
+
+function hasFxInfo(item: ExpenseItem) {
+  return Boolean(item.originalCurrency && item.fxRate && item.originalCurrency !== item.currency);
+}
+
+function formatFxInfo(item: ExpenseItem) {
+  const source = item.fxSource?.trim() || t("expenses.fxSourceManual");
+  return t("expenses.fxInfo", {
+    from: item.originalCurrency,
+    rate: item.fxRate,
+    to: item.currency || summary.value?.currency || "TWD",
+    source,
+  });
+}
+
+function getCategoryIcon(category: string | null | undefined) {
+  switch (normalizeCategory(category)) {
+    case "FOOD":
+      return "🍴";
+    case "CLOTHING":
+      return "👕";
+    case "LODGING":
+      return "🏨";
+    case "TRANSPORT":
+      return "🚗";
+    case "ENTERTAINMENT":
+      return "🎡";
+    default:
+      return "⋯";
+  }
+}
+
+function formatCategory(category: string | null | undefined) {
+  return t(`expenses.categories.${normalizeCategory(category)}`);
+}
+
+function normalizeCategory(category: string | null | undefined) {
+  const normalized = category?.trim().toUpperCase();
+  switch (normalized) {
+    case "FOOD":
+    case "CLOTHING":
+    case "LODGING":
+    case "TRANSPORT":
+    case "ENTERTAINMENT":
+    case "OTHER":
+      return normalized;
+    default:
+      return "OTHER";
+  }
 }
 
 const summaryRows = computed(() => {
@@ -136,9 +199,10 @@ const members = computed<ExpenseMember[]>(() => {
   return fallbackMembers.value;
 });
 
-async function load() {
+async function load(options: { silent?: boolean } = {}) {
   if (!tripId.value) return;
-  loading.value = true;
+  const silent = options.silent === true;
+  if (!silent) loading.value = true;
   errorMsg.value = "";
   try {
     const [expenseGroups, expenseSummary, nextSettlements, nextMembers] = await Promise.all([
@@ -154,34 +218,72 @@ async function load() {
   } catch (e: any) {
     errorMsg.value =
       e?.response?.data?.message ?? e?.message ?? t('expenses.loadFailed');
-    groups.value = [];
-    summary.value = null;
-    settlementItems.value = [];
-    tripMembers.value = [];
+    if (!silent) {
+      groups.value = [];
+      summary.value = null;
+      settlementItems.value = [];
+      tripMembers.value = [];
+    }
   } finally {
-    loading.value = false;
+    if (!silent) loading.value = false;
   }
 }
 
-function openCreate() {
+const pullToRefresh = usePullToRefresh(() => load({ silent: true }));
+
+function openCreate(prefillTitle = "") {
   createError.value = "";
   editingExpense.value = undefined;
+  prefillExpenseTitle.value = prefillTitle.trim();
   defaultExpenseDate.value = groups.value[0]?.expenseDate || toYmd(new Date());
   sheetOpen.value = true;
 }
 
-function openEdit(item: ExpenseItem) {
+async function openEdit(item: ExpenseItem) {
+  if (!tripId.value) return;
   createError.value = "";
-  editingExpense.value = item;
-  sheetOpen.value = true;
+  prefillExpenseTitle.value = "";
+  try {
+    const detail = await getExpenseDetail(tripId.value, item.id);
+    const splitMemberIds = detail.splits.map(s => s.memberId);
+    editingExpense.value = {
+      ...detail.expense,
+      participantMemberIds: splitMemberIds,
+      customSplits: detail.splits.map(s => ({ memberId: s.memberId, amount: s.shareAmount })),
+    };
+    sheetOpen.value = true;
+  } catch (e: any) {
+    createError.value = e?.message || "Failed to load expense details";
+  }
 }
 
 function closeCreate() {
   sheetOpen.value = false;
   createError.value = "";
+  prefillExpenseTitle.value = "";
   setTimeout(() => {
     editingExpense.value = undefined;
   }, 300);
+}
+
+function queryStringValue(value: unknown) {
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value)) return typeof value[0] === "string" ? value[0].trim() : "";
+  return "";
+}
+
+async function consumePrefillTitleQuery() {
+  const title = queryStringValue(route.query.prefillTitle);
+  if (!title || !(isOwner.value || isMember.value)) return;
+
+  openCreate(title);
+
+  const nextQuery = { ...route.query };
+  delete nextQuery.prefillTitle;
+  await router.replace({
+    path: route.path,
+    query: nextQuery,
+  });
 }
 
 async function handleCreate(payload: {
@@ -193,6 +295,11 @@ async function handleCreate(payload: {
   originalAmount?: number;
   originalCurrency?: string;
   fxRate?: number;
+  fxSource?: string;
+  category?: string;
+  paymentSource?: string;
+  splitMethod?: string;
+  customSplits?: Array<{ memberId: string, amount: number }>;
 }) {
   if (!tripId.value) return;
   creating.value = true;
@@ -204,6 +311,7 @@ async function handleCreate(payload: {
       await createExpense(tripId.value, payload);
     }
     sheetOpen.value = false;
+    prefillExpenseTitle.value = "";
     await load();
   } catch (e: any) {
     createError.value =
@@ -233,11 +341,31 @@ async function handleDelete() {
 
 onMounted(async () => {
   await load();
+  await consumePrefillTitleQuery();
 });
+
+watch(
+  () => route.query.prefillTitle,
+  () => {
+    void consumePrefillTitleQuery();
+  },
+);
 </script>
 
 <template>
-  <div class="pb-24">
+  <div
+    class="pb-24"
+    @touchstart="pullToRefresh.onTouchStart"
+    @touchmove="pullToRefresh.onTouchMove"
+    @touchend="pullToRefresh.onTouchEnd"
+    @touchcancel="pullToRefresh.onTouchEnd"
+  >
+    <div
+      class="pointer-events-none fixed left-1/2 top-0 z-50 flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900/90 text-emerald-300 opacity-0 shadow-lg ring-1 ring-zinc-700/70 backdrop-blur transition-opacity duration-150"
+      :style="pullToRefresh.indicatorStyle.value"
+    >
+      <div class="h-3.5 w-3.5 rounded-full border-2 border-emerald-300/30 border-t-emerald-300 animate-spin"></div>
+    </div>
     <div class="sticky top-0 z-20 -mx-4 px-4 pt-6 pb-4 bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800/50 flex flex-col items-center">
       <h1 class="text-2xl font-bold tracking-tight text-gradient">{{ $t('expenses.title') }}</h1>
       <p class="mt-0.5 text-xs font-mono text-zinc-500 bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800 mt-2">ID: {{ tripId }}</p>
@@ -287,7 +415,7 @@ onMounted(async () => {
         <p class="text-sm font-medium text-red-400 mb-4">{{ errorMsg }}</p>
         <button
           class="rounded-xl bg-zinc-800 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-zinc-700 active:scale-95"
-          @click="load"
+          @click="load()"
         >
           {{ $t('expenses.retryLoading') }}
         </button>
@@ -310,7 +438,10 @@ onMounted(async () => {
         </div>
       </div>
 
-      <div v-else class="space-y-6">
+      <div
+        v-else
+        class="max-h-[min(52svh,32rem)] space-y-6 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
+      >
         <section
           v-for="(group, gIdx) in groups"
           :key="group.expenseDate"
@@ -337,15 +468,40 @@ onMounted(async () => {
               <div class="flex items-start justify-between gap-4">
                 <div class="min-w-0 flex-1">
                   <div class="truncate text-base font-semibold text-zinc-100">
+                    <span class="mr-1.5" aria-hidden="true">{{ getCategoryIcon(item.category) }}</span>
                     {{ item.title || $t('expenses.untitled') }}
                   </div>
                   <div class="mt-1.5 flex items-center gap-2">
-                    <span class="inline-flex text-[10px] font-bold text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded-md border border-zinc-700/50">
-                      {{ item.paymentSource || "PERSONAL" }}
+                    <span class="inline-flex items-center gap-1 text-[10px] font-bold text-zinc-300 bg-zinc-800 px-2 py-0.5 rounded-md border border-zinc-700/50">
+                      <span aria-hidden="true">{{ getCategoryIcon(item.category) }}</span>
+                      {{ formatCategory(item.category) }}
                     </span>
-                    <span class="inline-flex text-[10px] font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">
-                      {{ item.splitMethod || "EQUAL" }}
+                    <span
+                      class="inline-flex text-[10px] font-bold px-2 py-0.5 rounded-md border"
+                      :class="item.paymentSource === 'SHARED_WALLET'
+                        ? 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+                        : 'text-zinc-400 bg-zinc-800 border-zinc-700/50'"
+                    >
+                      {{ formatPaymentSource(item.paymentSource) }}
                     </span>
+                    <span
+                      v-if="item.splitMethod === 'CUSTOM_AMOUNT'"
+                      class="inline-flex text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20"
+                    >
+                      {{ formatSplitMethod(item.splitMethod) }}
+                    </span>
+                    <span
+                      v-else
+                      class="inline-flex text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20"
+                    >
+                      EQUAL
+                    </span>
+                  </div>
+                  <div
+                    v-if="hasFxInfo(item)"
+                    class="mt-1.5 text-[11px] font-medium text-zinc-500"
+                  >
+                    {{ formatFxInfo(item) }}
                   </div>
                 </div>
                 <div class="text-lg font-bold text-zinc-100 shrink-0">
@@ -401,7 +557,7 @@ onMounted(async () => {
     >
       <button
         class="w-14 h-14 flex items-center justify-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-xl shadow-emerald-500/30 transition-all hover:scale-110 active:scale-95"
-        @click="openCreate"
+        @click="openCreate()"
       >
         <el-icon size="24"><Plus /></el-icon>
       </button>
@@ -409,7 +565,7 @@ onMounted(async () => {
 
     <BottomSheet
       :open="sheetOpen"
-      :title="editingExpense ? 'Edit Expense' : $t('expenses.addExpense')"
+      :title="editingExpense ? $t('expenses.editExpense') : $t('expenses.addExpense')"
       @close="closeCreate"
     >
       <div
@@ -425,6 +581,7 @@ onMounted(async () => {
         :submitting="creating"
         :base-currency="summary?.currency || 'TWD'"
         :initial-expense="editingExpense"
+        :prefill-title="prefillExpenseTitle"
         @cancel="closeCreate"
         @delete="handleDelete"
         @submit="handleCreate"

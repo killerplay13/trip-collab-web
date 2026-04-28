@@ -42,10 +42,10 @@ onBeforeUnmount(() => {
 
       <!-- Sheet -->
       <div
-        class="absolute bottom-0 left-0 right-0 mx-auto max-w-md rounded-t-3xl bg-zinc-950 ring-1 ring-zinc-800"
+        class="absolute bottom-0 left-0 right-0 mx-auto flex max-h-[calc(100svh-1rem)] max-w-md flex-col rounded-t-3xl bg-zinc-950 ring-1 ring-zinc-800"
         style="padding-bottom: env(safe-area-inset-bottom)"
       >
-        <div class="flex items-center justify-between px-4 pt-4">
+        <div class="flex shrink-0 items-center justify-between px-4 pt-4">
           <div class="text-base font-semibold">
             {{ title || "Sheet" }}
           </div>
@@ -57,7 +57,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div class="px-4 pb-6 pt-4">
+        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-6 pt-4">
           <slot />
         </div>
       </div>

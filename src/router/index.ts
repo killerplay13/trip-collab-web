@@ -14,6 +14,7 @@ const routes = [
       { path: "itinerary", component: () => import("../pages/ItineraryListPage.vue") },
       { path: "expenses", component: () => import("../pages/ExpensesPage.vue") },
       { path: "settlement", component: () => import("../pages/SettlementPage.vue") },
+      { path: "wallet", component: () => import("../pages/WalletPage.vue") },
       { path: "notes", component: () => import("../pages/NotesPage.vue") },
     ],
   },

@@ -1,4 +1,6 @@
 import axios from "axios";
+import { ElMessage } from "element-plus";
+import i18n from "../i18n";
 import { useSessionStore } from "../stores/session";
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || ""; // <-- important for proxy
@@ -26,6 +28,48 @@ function getTripIdFromUrl(url?: string) {
   const path = getRequestPath(url);
   const match = path.match(/^\/api\/trips\/([^/]+)(?:\/.*)?$/);
   return match?.[1] ?? null;
+}
+
+function translateApiErrorMessage(message?: string) {
+  const fallback = message?.trim();
+  if (!fallback) return "";
+
+  const insufficientWalletBalance = fallback.match(/^Insufficient wallet balance in ([A-Z]{3})$/);
+  if (insufficientWalletBalance?.[1]) {
+    return (i18n.global as any).t("apiErrors.insufficientWalletBalance", {
+      currency: insufficientWalletBalance[1],
+    });
+  }
+
+  return fallback;
+}
+
+function getApiErrorMessage(error: any) {
+  const responseMessage = error?.response?.data?.message;
+  if (typeof responseMessage === "string" && responseMessage.trim()) {
+    return translateApiErrorMessage(responseMessage);
+  }
+
+  if (typeof error?.message === "string" && error.message.trim()) {
+    return translateApiErrorMessage(error.message);
+  }
+
+  return (i18n.global as any).t("apiErrors.requestFailed");
+}
+
+function showApiErrorToast(error: any) {
+  if (error?.code === "ERR_CANCELED") return;
+  if (error?.config?.skipErrorToast) return;
+
+  const message = getApiErrorMessage(error);
+  if (!message) return;
+
+  ElMessage({
+    type: "error",
+    message,
+    showClose: true,
+    duration: 5000,
+  });
 }
 
 api.interceptors.request.use((config) => {
@@ -76,6 +120,8 @@ api.interceptors.response.use(
           window.location.replace(nextUrl);
         }
       }
+    } else {
+      showApiErrorToast(error);
     }
 
     return Promise.reject(error);

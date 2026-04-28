@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRoute } from "vue-router";
+import { useI18n } from "vue-i18n";
 import { useTripAccess } from "../composables/useTripAccess";
 import BottomSheet from "../components/BottomSheet.vue";
 import { getSettlements, createExpense } from "../api/expenses";
 import type { ExpenseSettlement } from "../api/expenses";
 
 const route = useRoute();
+const { t } = useI18n();
 const tripId = computed(() => String(route.params.tripId || ""));
 const { isOwner, role } = useTripAccess();
 
@@ -61,7 +63,7 @@ async function handleSettle(item: ExpenseSettlement) {
   errorMsg.value = "";
   try {
     await createExpense(tripId.value, {
-      title: "Settle Up",
+      title: t("settlement.settleUpAction"),
       amount: item.amount,
       expenseDate: toYmd(new Date()),
       paidByMemberId: item.fromMemberId,
@@ -179,7 +181,7 @@ async function handleSettle(item: ExpenseSettlement) {
             :disabled="settling"
             @click="handleSettle(item)"
           >
-            {{ settling ? "Settling..." : "Settle Up" }}
+            {{ settling ? $t('settlement.settling') : $t('settlement.settleBtn') }}
           </button>
         </div>
       </div>

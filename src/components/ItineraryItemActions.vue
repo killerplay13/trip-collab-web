@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowDown, ArrowUp, Delete, Edit, Location, Rank } from "@element-plus/icons-vue";
+import { ArrowDown, ArrowUp, Delete, Edit, Location, Money, Rank } from "@element-plus/icons-vue";
 import type { ItineraryItem } from "../types/itinerary";
 import { useTripAccess } from "../composables/useTripAccess";
 
@@ -11,6 +11,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  (e: "expense", item: ItineraryItem): void;
   (e: "move-up", idx: number): void;
   (e: "move-down", idx: number): void;
   (e: "move", item: ItineraryItem): void;
@@ -33,31 +34,46 @@ function actionClass(disabled: boolean, tone: "normal" | "danger" = "normal") {
     disabled ? actionDisabled : tone === "danger" ? actionDanger : actionEnabled,
   ];
 }
+
+function normalizeMapHref(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed) return "#";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^www\./i.test(trimmed)) return `https://${trimmed}`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(trimmed)}`;
+}
 </script>
 
 <template>
   <div
-    class="mt-3 flex items-center gap-2 overflow-x-auto whitespace-nowrap [scrollbar-width:none] [-webkit-overflow-scrolling:touch]"
+    class="flex w-full items-center gap-1.5 overflow-x-auto whitespace-nowrap pb-0.5 [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
   >
-    <el-button
+    <button
+      type="button"
+      class="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 text-sm font-semibold text-emerald-300 ring-1 ring-emerald-500/20 transition-all hover:bg-emerald-500/20 hover:text-emerald-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950"
+      @click="emit('expense', props.item)"
+    >
+      <el-icon><Money /></el-icon>
+      {{ $t('itinerary.addExpense') }}
+    </button>
+
+    <a
       v-if="props.item.mapUrl"
-      size="small"
-      text
-      :icon="Location"
-      :class="actionClass(false)"
-      :href="props.item.mapUrl"
+      :href="normalizeMapHref(props.item.mapUrl)"
       target="_blank"
       rel="noreferrer"
+      :class="[actionClass(false), 'inline-flex h-8 shrink-0 items-center gap-1.5 text-sm no-underline']"
     >
+      <el-icon><Location /></el-icon>
       {{ $t('itinerary.map') }}
-    </el-button>
+    </a>
     <el-button
       v-if="canReorderData"
       size="small"
       text
       :icon="ArrowUp"
       :disabled="props.idx === 0 || props.reordering"
-      :class="actionClass(props.idx === 0 || props.reordering)"
+      :class="[actionClass(props.idx === 0 || props.reordering), 'shrink-0']"
       @click="emit('move-up', props.idx)"
     >
       {{ $t('itinerary.up') }}
@@ -68,7 +84,7 @@ function actionClass(disabled: boolean, tone: "normal" | "danger" = "normal") {
       text
       :icon="ArrowDown"
       :disabled="props.idx === props.total - 1 || props.reordering"
-      :class="actionClass(props.idx === props.total - 1 || props.reordering)"
+      :class="[actionClass(props.idx === props.total - 1 || props.reordering), 'shrink-0']"
       @click="emit('move-down', props.idx)"
     >
       {{ $t('itinerary.down') }}
@@ -79,7 +95,7 @@ function actionClass(disabled: boolean, tone: "normal" | "danger" = "normal") {
       size="small"
       text
       :icon="Rank"
-      :class="actionClass(false)"
+      :class="[actionClass(false), 'shrink-0']"
       @click="emit('move', props.item)"
     >
       {{ $t('itinerary.moveBtn') }}
@@ -88,7 +104,7 @@ function actionClass(disabled: boolean, tone: "normal" | "danger" = "normal") {
       size="small"
       text
       :icon="Edit"
-      :class="actionClass(false)"
+      :class="[actionClass(false), 'shrink-0']"
       @click="emit('edit', props.item)"
     >
       {{ $t('itinerary.editItem') }}
@@ -99,7 +115,7 @@ function actionClass(disabled: boolean, tone: "normal" | "danger" = "normal") {
       text
       type="danger"
       :icon="Delete"
-      :class="actionClass(false, 'danger')"
+      :class="[actionClass(false, 'danger'), 'shrink-0']"
       @click="emit('delete', props.item)"
     >
       {{ $t('itinerary.deleteBtn') }}
