@@ -76,6 +76,19 @@ const aiDraft = ref<AiItineraryGenerateResponse | null>(null);
 const aiLoading = ref(false);
 const aiError = ref("");
 const aiNotes = ref("");
+const aiHelperOpen = ref(false);
+const aiSelectedInterests = ref<string[]>([]);
+const aiMustVisitText = ref("");
+const aiAvoidText = ref("");
+
+const aiPreferenceChips = [
+  { value: "relaxed", labelKey: "itinerary.aiPreferenceRelaxed" },
+  { value: "food", labelKey: "itinerary.aiPreferenceFood" },
+  { value: "shopping", labelKey: "itinerary.aiPreferenceShopping" },
+  { value: "family", labelKey: "itinerary.aiPreferenceFamily" },
+  { value: "photo", labelKey: "itinerary.aiPreferencePhoto" },
+  { value: "culture", labelKey: "itinerary.aiPreferenceCulture" },
+];
 
 function formatTimeRange(item: ItineraryItem) {
   const start = item.startTime ? item.startTime.slice(0, 5) : "";
@@ -91,6 +104,31 @@ function formatAiTimeRange(item: AiItineraryDraftItem) {
   return start || end || "";
 }
 
+function toggleAiInterest(value: string) {
+  if (aiLoading.value) return;
+  if (aiSelectedInterests.value.includes(value)) {
+    aiSelectedInterests.value = aiSelectedInterests.value.filter((item) => item !== value);
+    return;
+  }
+  aiSelectedInterests.value = [...aiSelectedInterests.value, value];
+}
+
+function parseAiTextList(text: string) {
+  return text
+    .split(/[,\n，、]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function clearAiDraft() {
+  aiDraft.value = null;
+  aiError.value = "";
+}
+
+async function regenerateAiDraft() {
+  await handleGenerateAiDraft();
+}
+
 async function handleGenerateAiDraft() {
   if (!tripId.value || aiLoading.value) return;
   aiLoading.value = true;
@@ -100,10 +138,10 @@ async function handleGenerateAiDraft() {
     aiDraft.value = await generateAiItineraryDraft(tripId.value, {
       from: selectedDate.value,
       to: selectedDate.value,
-      interests: [],
-      mustVisitPlaces: [],
-      avoidPlaces: [],
-      travelStyle: null,
+      interests: aiSelectedInterests.value,
+      mustVisitPlaces: parseAiTextList(aiMustVisitText.value),
+      avoidPlaces: parseAiTextList(aiAvoidText.value),
+      travelStyle: aiSelectedInterests.value.includes("relaxed") ? "relaxed" : null,
       budgetLevel: null,
       notes: aiNotes.value.trim() || null,
       language: String(locale.value || "zh-TW"),
@@ -573,122 +611,213 @@ watch(searchQuery, (value) => {
       </div>
     </div>
 
-    <!-- AI Draft Panel -->
+    <!-- AI Helper Panel -->
     <section v-if="!searchMode" class="mt-4 glass-card p-4 animate-fade-in-up">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
-          <h2 class="text-base font-bold text-zinc-100">
-            {{ $t('itinerary.aiGenerateForSelectedDate', { date: selectedDate }) }}
-          </h2>
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 class="text-base font-bold text-zinc-100">{{ $t('itinerary.aiHelperTitle') }}</h2>
+            <span class="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-mono font-semibold text-emerald-300 ring-1 ring-emerald-500/20">
+              {{ selectedDate }}
+            </span>
+          </div>
           <p class="mt-1 text-sm leading-relaxed text-zinc-400">
-            {{ $t('itinerary.aiSelectedDateNotice', { date: selectedDate }) }}
+            {{ $t('itinerary.aiHelperCollapsedDescription') }}
           </p>
         </div>
-      </div>
 
-      <div class="mt-3 rounded-xl bg-zinc-900/60 p-3 text-sm leading-relaxed text-zinc-300 ring-1 ring-zinc-800/70">
-        {{ $t('itinerary.aiDraftNotSavedNotice') }}
-      </div>
-
-      <label class="mt-4 block">
-        <textarea
-          v-model="aiNotes"
-          rows="3"
-          :placeholder="$t('itinerary.aiNotesPlaceholder')"
-          class="w-full rounded-xl bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 outline-none ring-1 ring-zinc-800 transition-all focus:ring-emerald-500/50"
-          :disabled="aiLoading"
-        />
-      </label>
-
-      <div class="mt-3 flex items-center gap-2">
         <button
-          class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
+          type="button"
+          class="shrink-0 rounded-xl bg-zinc-900 px-3 py-2 text-sm font-semibold text-zinc-200 ring-1 ring-zinc-800 transition-all hover:bg-zinc-800 active:scale-95"
+          @click="aiHelperOpen = !aiHelperOpen"
+        >
+          {{ aiHelperOpen ? $t('itinerary.aiCollapse') : $t('itinerary.aiExpand') }}
+        </button>
+      </div>
+
+      <div v-if="aiHelperOpen" class="mt-4 space-y-4">
+        <div class="rounded-xl bg-zinc-900/60 p-3 text-sm leading-relaxed text-zinc-300 ring-1 ring-zinc-800/70">
+          {{ $t('itinerary.aiSelectedDateOnlyNotice', { date: selectedDate }) }}
+        </div>
+
+        <div>
+          <div class="mb-2 text-sm font-semibold text-zinc-200">{{ $t('itinerary.aiPreferenceTitle') }}</div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="chip in aiPreferenceChips"
+              :key="chip.value"
+              type="button"
+              class="rounded-full px-3 py-1.5 text-sm font-semibold ring-1 transition-all active:scale-95 disabled:opacity-60"
+              :class="aiSelectedInterests.includes(chip.value)
+                ? 'bg-emerald-500/15 text-emerald-200 ring-emerald-500/30'
+                : 'bg-zinc-900/70 text-zinc-300 ring-zinc-800 hover:bg-zinc-800'"
+              :disabled="aiLoading"
+              @click="toggleAiInterest(chip.value)"
+            >
+              {{ $t(chip.labelKey) }}
+            </button>
+          </div>
+        </div>
+
+        <label class="block">
+          <div class="text-sm font-semibold text-zinc-200">{{ $t('itinerary.aiMustVisitLabel') }}</div>
+          <input
+            v-model="aiMustVisitText"
+            :placeholder="$t('itinerary.aiMustVisitPlaceholder')"
+            class="mt-2 w-full rounded-xl bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 outline-none ring-1 ring-zinc-800 transition-all focus:ring-emerald-500/50"
+            :disabled="aiLoading"
+          />
+        </label>
+
+        <label class="block">
+          <div class="text-sm font-semibold text-zinc-200">{{ $t('itinerary.aiAvoidLabel') }}</div>
+          <input
+            v-model="aiAvoidText"
+            :placeholder="$t('itinerary.aiAvoidPlaceholder')"
+            class="mt-2 w-full rounded-xl bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 outline-none ring-1 ring-zinc-800 transition-all focus:ring-emerald-500/50"
+            :disabled="aiLoading"
+          />
+        </label>
+
+        <label class="block">
+          <div class="text-sm font-semibold text-zinc-200">{{ $t('itinerary.aiNotesLabel') }}</div>
+          <textarea
+            v-model="aiNotes"
+            rows="3"
+            :placeholder="$t('itinerary.aiNotesPlaceholder')"
+            class="mt-2 w-full rounded-xl bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 outline-none ring-1 ring-zinc-800 transition-all focus:ring-emerald-500/50"
+            :disabled="aiLoading"
+          />
+        </label>
+
+        <div v-if="aiError" class="rounded-xl bg-red-400/10 p-3 text-sm text-red-300 ring-1 ring-red-400/20">
+          {{ aiError }}
+        </div>
+
+        <button
+          type="button"
+          class="w-full rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.01] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
           :disabled="aiLoading"
           @click="handleGenerateAiDraft"
         >
           {{ aiLoading ? $t('itinerary.aiGenerating') : $t('itinerary.aiGenerateSelectedDateButton') }}
         </button>
-        <p class="text-xs text-zinc-500">{{ selectedDate }}</p>
       </div>
+    </section>
 
-      <div v-if="aiError" class="mt-3 rounded-xl bg-red-400/10 p-3 text-sm text-red-300 ring-1 ring-red-400/20">
-        {{ aiError }}
-      </div>
-
-      <div v-if="aiDraft" class="mt-5 space-y-4">
-        <div class="flex items-center justify-between gap-3">
-          <h3 class="text-sm font-bold uppercase tracking-wide text-emerald-300">
-            {{ $t('itinerary.aiDraftTitle') }}
-          </h3>
-          <span class="rounded-full bg-zinc-900 px-2.5 py-1 text-xs font-mono text-zinc-400 ring-1 ring-zinc-800">
-            {{ selectedDate }}
-          </span>
-        </div>
-
-        <div
-          v-if="aiDraft.fallback"
-          class="rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200 ring-1 ring-amber-400/20"
-        >
-          {{ $t('itinerary.aiFallbackWarning') }}
-          <span v-if="aiDraft.fallbackReason" class="ml-1 text-amber-300">
-            {{ aiDraft.fallbackReason }}
-          </span>
-        </div>
-
-        <p
-          v-if="aiDraft.explanation"
-          class="rounded-xl bg-zinc-900/60 p-3 text-sm leading-relaxed text-zinc-300 ring-1 ring-zinc-800/70"
-        >
-          {{ aiDraft.explanation }}
-        </p>
-
-        <div v-if="aiDraft.warnings.length" class="rounded-xl bg-zinc-900/60 p-3 ring-1 ring-zinc-800/70">
-          <div class="text-xs font-semibold uppercase tracking-wide text-amber-300">
-            {{ $t('itinerary.aiWarningsTitle') }}
+    <!-- AI Draft Result -->
+    <section v-if="!searchMode && aiDraft" class="mt-4 rounded-3xl bg-zinc-950/70 p-4 ring-1 ring-sky-500/25 shadow-xl shadow-sky-950/20 animate-fade-in-up">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h3 class="text-base font-bold text-sky-200">{{ $t('itinerary.aiDraftTitle') }}</h3>
+            <span class="rounded-full bg-sky-500/10 px-2.5 py-1 text-xs font-mono text-sky-200 ring-1 ring-sky-500/20">
+              {{ selectedDate }}
+            </span>
           </div>
-          <ul class="mt-2 space-y-1 text-sm text-zinc-300">
-            <li v-for="warning in aiDraft.warnings" :key="warning">
-              {{ warning }}
-            </li>
-          </ul>
+          <p class="mt-1 text-sm text-zinc-400">{{ $t('itinerary.aiDraftOnlyNotice') }}</p>
         </div>
 
-        <div class="space-y-4">
-          <div
-            v-for="day in aiDraft.days"
-            :key="day.dayDate"
-            class="rounded-2xl bg-zinc-950/60 p-3 ring-1 ring-zinc-800/80"
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="rounded-xl bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-200 ring-1 ring-zinc-800 transition-all hover:bg-zinc-800 active:scale-95"
+            :disabled="aiLoading"
+            @click="clearAiDraft"
           >
-            <div class="mb-3 text-sm font-semibold text-zinc-200">{{ day.dayDate }}</div>
-            <div class="space-y-3">
-              <div
-                v-for="(draftItem, draftIdx) in day.items"
-                :key="`${day.dayDate}-${draftItem.sortOrder}-${draftIdx}`"
-                class="rounded-xl bg-zinc-900/70 p-3 ring-1 ring-zinc-800/70"
-              >
-                <div class="flex items-start gap-3">
-                  <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs font-bold text-emerald-300 ring-1 ring-emerald-500/20">
-                    {{ draftItem.sortOrder }}
-                  </span>
-                  <div class="min-w-0 flex-1">
-                    <div
+            {{ $t('itinerary.aiClearDraft') }}
+          </button>
+          <button
+            type="button"
+            class="rounded-xl bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-200 ring-1 ring-sky-500/20 transition-all hover:bg-sky-500/20 active:scale-95 disabled:opacity-60"
+            :disabled="aiLoading"
+            @click="regenerateAiDraft"
+          >
+            {{ aiLoading ? $t('itinerary.aiGenerating') : $t('itinerary.aiRegenerate') }}
+          </button>
+          <button
+            type="button"
+            class="rounded-xl bg-zinc-900/60 px-3 py-2 text-xs font-semibold text-zinc-500 ring-1 ring-zinc-800"
+            disabled
+            :title="$t('itinerary.aiImportComingSoon')"
+          >
+            {{ $t('itinerary.aiImportDisabled') }}
+          </button>
+        </div>
+      </div>
+
+      <div class="mt-4 rounded-xl bg-sky-500/10 p-3 text-sm leading-relaxed text-sky-100 ring-1 ring-sky-500/20">
+        {{ $t('itinerary.aiImportComingSoon') }}
+      </div>
+
+      <div
+        v-if="aiDraft.fallback"
+        class="mt-4 rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200 ring-1 ring-amber-400/20"
+      >
+        {{ $t('itinerary.aiFallbackWarning') }}
+        <span v-if="aiDraft.fallbackReason" class="ml-1 text-amber-300">
+          {{ aiDraft.fallbackReason }}
+        </span>
+      </div>
+
+      <div v-if="aiDraft.warnings.length" class="mt-4 rounded-xl bg-zinc-900/60 p-3 ring-1 ring-zinc-800/70">
+        <div class="text-xs font-semibold uppercase tracking-wide text-amber-300">
+          {{ $t('itinerary.aiWarningsTitle') }}
+        </div>
+        <ul class="mt-2 space-y-1 text-sm text-zinc-300">
+          <li v-for="warning in aiDraft.warnings" :key="warning">
+            {{ warning }}
+          </li>
+        </ul>
+      </div>
+
+      <p
+        v-if="aiDraft.explanation"
+        class="mt-4 rounded-xl bg-zinc-900/60 p-3 text-sm leading-relaxed text-zinc-300 ring-1 ring-zinc-800/70"
+      >
+        {{ aiDraft.explanation }}
+      </p>
+
+      <div class="mt-4 space-y-4">
+        <div
+          v-for="day in aiDraft.days"
+          :key="day.dayDate"
+          class="rounded-2xl bg-zinc-900/40 p-3 ring-1 ring-sky-500/15"
+        >
+          <div class="mb-3 text-sm font-semibold text-zinc-200">{{ day.dayDate }}</div>
+          <div class="space-y-3">
+            <div
+              v-for="(draftItem, draftIdx) in day.items"
+              :key="`${day.dayDate}-${draftItem.sortOrder}-${draftIdx}`"
+              class="rounded-2xl bg-zinc-950/70 p-3 ring-1 ring-sky-500/20"
+            >
+              <div class="flex items-start gap-3">
+                <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500/10 text-xs font-bold text-sky-200 ring-1 ring-sky-500/20">
+                  {{ draftItem.sortOrder }}
+                </span>
+                <div class="min-w-0 flex-1">
+                  <div class="mb-2 flex flex-wrap items-center gap-2">
+                    <span class="rounded-full bg-sky-500/10 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-sky-200 ring-1 ring-sky-500/20">
+                      {{ $t('itinerary.aiDraftBadge') }}
+                    </span>
+                    <span
                       v-if="formatAiTimeRange(draftItem)"
-                      class="mb-1.5 inline-flex rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-400 ring-1 ring-emerald-500/20"
+                      class="rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-400 ring-1 ring-emerald-500/20"
                     >
                       {{ formatAiTimeRange(draftItem) }}
-                    </div>
-                    <div class="text-base font-bold text-zinc-100">
-                      {{ draftItem.title || $t('itinerary.untitled') }}
-                    </div>
-                    <div v-if="draftItem.locationName" class="mt-1 text-sm text-zinc-400">
-                      {{ draftItem.locationName }}
-                    </div>
-                    <div
-                      v-if="draftItem.note"
-                      class="mt-2 whitespace-pre-line rounded-lg bg-zinc-950/60 p-2 text-sm leading-relaxed text-zinc-300"
-                    >
-                      {{ draftItem.note }}
-                    </div>
+                    </span>
+                  </div>
+                  <div class="text-base font-bold text-zinc-100">
+                    {{ draftItem.title || $t('itinerary.untitled') }}
+                  </div>
+                  <div v-if="draftItem.locationName" class="mt-1 text-sm text-zinc-400">
+                    {{ draftItem.locationName }}
+                  </div>
+                  <div
+                    v-if="draftItem.note"
+                    class="mt-2 whitespace-pre-line rounded-lg bg-zinc-900/70 p-2 text-sm leading-relaxed text-zinc-300"
+                  >
+                    {{ draftItem.note }}
                   </div>
                 </div>
               </div>
