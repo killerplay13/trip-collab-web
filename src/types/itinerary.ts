@@ -20,3 +20,39 @@ export type ItineraryPatch = Partial<{
   mapUrl: string | null;
   note: string | null;
 }>;
+
+export type AiItineraryGeneratePayload = {
+  from?: string | null;
+  to?: string | null;
+  interests: string[];
+  mustVisitPlaces: string[];
+  avoidPlaces: string[];
+  travelStyle?: string | null;
+  budgetLevel?: string | null;
+  notes?: string | null;
+  language?: string | null;
+};
+
+export type AiItineraryDraftItem = {
+  startTime?: string | null;
+  endTime?: string | null;
+  title: string;
+  locationName?: string | null;
+  mapUrl?: string | null;
+  note?: string | null;
+  sortOrder: number;
+};
+
+export type AiItineraryDraftDay = {
+  dayDate: string;
+  items: AiItineraryDraftItem[];
+};
+
+export type AiItineraryGenerateResponse = {
+  tripId: string;
+  fallback: boolean;
+  fallbackReason?: string | null;
+  explanation?: string | null;
+  warnings: string[];
+  days: AiItineraryDraftDay[];
+};

@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, Calendar, DocumentAdd, Plus } from "@element-plu
 import {
   createItineraryItem,
   deleteItineraryItem,
+  generateAiItineraryDraft,
   getItineraryByDate,
   moveItineraryItem,
   pasteCreateItinerary,
@@ -14,7 +15,7 @@ import {
   searchItineraryItems,
 } from "../api/itinerary";
 import type { PastePreviewResult } from "../api/itinerary";
-import type { ItineraryItem } from "../types/itinerary";
+import type { AiItineraryDraftItem, AiItineraryGenerateResponse, ItineraryItem } from "../types/itinerary";
 import BottomSheet from "../components/BottomSheet.vue";
 import ItineraryCreateForm from "../components/ItineraryCreateForm.vue";
 import ItineraryItemActions from "../components/ItineraryItemActions.vue";
@@ -25,7 +26,7 @@ import { useI18n } from "vue-i18n";
 const route = useRoute();
 const router = useRouter();
 const { canEditData } = useTripAccess();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 const tripId = computed(() => String(route.params.tripId || ""));
 
@@ -71,12 +72,48 @@ const searchLoading = ref(false);
 const searchError = ref<string | null>(null);
 const searchResults = ref<ItineraryItem[]>([]);
 const searchMode = computed(() => searchQuery.value.trim().length > 0);
+const aiDraft = ref<AiItineraryGenerateResponse | null>(null);
+const aiLoading = ref(false);
+const aiError = ref("");
+const aiNotes = ref("");
 
 function formatTimeRange(item: ItineraryItem) {
   const start = item.startTime ? item.startTime.slice(0, 5) : "";
   const end = item.endTime ? item.endTime.slice(0, 5) : "";
   if (start && end) return `${start} - ${end}`;
   return start || end || "";
+}
+
+function formatAiTimeRange(item: AiItineraryDraftItem) {
+  const start = item.startTime ? item.startTime.slice(0, 5) : "";
+  const end = item.endTime ? item.endTime.slice(0, 5) : "";
+  if (start && end) return `${start} - ${end}`;
+  return start || end || "";
+}
+
+async function handleGenerateAiDraft() {
+  if (!tripId.value || aiLoading.value) return;
+  aiLoading.value = true;
+  aiError.value = "";
+  aiDraft.value = null;
+  try {
+    aiDraft.value = await generateAiItineraryDraft(tripId.value, {
+      from: selectedDate.value,
+      to: selectedDate.value,
+      interests: [],
+      mustVisitPlaces: [],
+      avoidPlaces: [],
+      travelStyle: null,
+      budgetLevel: null,
+      notes: aiNotes.value.trim() || null,
+      language: String(locale.value || "zh-TW"),
+    });
+  } catch (e: any) {
+    aiError.value =
+      e?.response?.data?.message ?? e?.message ?? t("itinerary.aiErrorFallback");
+  } finally {
+    aiLoading.value = false;
+  }
 }
 
 async function load(options: { silent?: boolean } = {}) {
@@ -449,7 +486,11 @@ async function openExpenseFromItinerary(item: ItineraryItem) {
 }
 
 onMounted(() => void load());
-watch(() => selectedDate.value, () => void load());
+watch(() => selectedDate.value, () => {
+  aiDraft.value = null;
+  aiError.value = "";
+  void load();
+});
 watch(searchQuery, (value) => {
   const q = value.trim();
   if (!q) {
@@ -531,6 +572,131 @@ watch(searchQuery, (value) => {
         </div>
       </div>
     </div>
+
+    <!-- AI Draft Panel -->
+    <section v-if="!searchMode" class="mt-4 glass-card p-4 animate-fade-in-up">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h2 class="text-base font-bold text-zinc-100">
+            {{ $t('itinerary.aiGenerateForSelectedDate', { date: selectedDate }) }}
+          </h2>
+          <p class="mt-1 text-sm leading-relaxed text-zinc-400">
+            {{ $t('itinerary.aiSelectedDateNotice', { date: selectedDate }) }}
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-3 rounded-xl bg-zinc-900/60 p-3 text-sm leading-relaxed text-zinc-300 ring-1 ring-zinc-800/70">
+        {{ $t('itinerary.aiDraftNotSavedNotice') }}
+      </div>
+
+      <label class="mt-4 block">
+        <textarea
+          v-model="aiNotes"
+          rows="3"
+          :placeholder="$t('itinerary.aiNotesPlaceholder')"
+          class="w-full rounded-xl bg-zinc-900/70 px-3 py-2 text-sm text-zinc-100 placeholder-zinc-500 outline-none ring-1 ring-zinc-800 transition-all focus:ring-emerald-500/50"
+          :disabled="aiLoading"
+        />
+      </label>
+
+      <div class="mt-3 flex items-center gap-2">
+        <button
+          class="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-[1.02] active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:scale-100"
+          :disabled="aiLoading"
+          @click="handleGenerateAiDraft"
+        >
+          {{ aiLoading ? $t('itinerary.aiGenerating') : $t('itinerary.aiGenerateSelectedDateButton') }}
+        </button>
+        <p class="text-xs text-zinc-500">{{ selectedDate }}</p>
+      </div>
+
+      <div v-if="aiError" class="mt-3 rounded-xl bg-red-400/10 p-3 text-sm text-red-300 ring-1 ring-red-400/20">
+        {{ aiError }}
+      </div>
+
+      <div v-if="aiDraft" class="mt-5 space-y-4">
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="text-sm font-bold uppercase tracking-wide text-emerald-300">
+            {{ $t('itinerary.aiDraftTitle') }}
+          </h3>
+          <span class="rounded-full bg-zinc-900 px-2.5 py-1 text-xs font-mono text-zinc-400 ring-1 ring-zinc-800">
+            {{ selectedDate }}
+          </span>
+        </div>
+
+        <div
+          v-if="aiDraft.fallback"
+          class="rounded-xl bg-amber-400/10 p-3 text-sm text-amber-200 ring-1 ring-amber-400/20"
+        >
+          {{ $t('itinerary.aiFallbackWarning') }}
+          <span v-if="aiDraft.fallbackReason" class="ml-1 text-amber-300">
+            {{ aiDraft.fallbackReason }}
+          </span>
+        </div>
+
+        <p
+          v-if="aiDraft.explanation"
+          class="rounded-xl bg-zinc-900/60 p-3 text-sm leading-relaxed text-zinc-300 ring-1 ring-zinc-800/70"
+        >
+          {{ aiDraft.explanation }}
+        </p>
+
+        <div v-if="aiDraft.warnings.length" class="rounded-xl bg-zinc-900/60 p-3 ring-1 ring-zinc-800/70">
+          <div class="text-xs font-semibold uppercase tracking-wide text-amber-300">
+            {{ $t('itinerary.aiWarningsTitle') }}
+          </div>
+          <ul class="mt-2 space-y-1 text-sm text-zinc-300">
+            <li v-for="warning in aiDraft.warnings" :key="warning">
+              {{ warning }}
+            </li>
+          </ul>
+        </div>
+
+        <div class="space-y-4">
+          <div
+            v-for="day in aiDraft.days"
+            :key="day.dayDate"
+            class="rounded-2xl bg-zinc-950/60 p-3 ring-1 ring-zinc-800/80"
+          >
+            <div class="mb-3 text-sm font-semibold text-zinc-200">{{ day.dayDate }}</div>
+            <div class="space-y-3">
+              <div
+                v-for="(draftItem, draftIdx) in day.items"
+                :key="`${day.dayDate}-${draftItem.sortOrder}-${draftIdx}`"
+                class="rounded-xl bg-zinc-900/70 p-3 ring-1 ring-zinc-800/70"
+              >
+                <div class="flex items-start gap-3">
+                  <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-xs font-bold text-emerald-300 ring-1 ring-emerald-500/20">
+                    {{ draftItem.sortOrder }}
+                  </span>
+                  <div class="min-w-0 flex-1">
+                    <div
+                      v-if="formatAiTimeRange(draftItem)"
+                      class="mb-1.5 inline-flex rounded-md bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-400 ring-1 ring-emerald-500/20"
+                    >
+                      {{ formatAiTimeRange(draftItem) }}
+                    </div>
+                    <div class="text-base font-bold text-zinc-100">
+                      {{ draftItem.title || $t('itinerary.untitled') }}
+                    </div>
+                    <div v-if="draftItem.locationName" class="mt-1 text-sm text-zinc-400">
+                      {{ draftItem.locationName }}
+                    </div>
+                    <div
+                      v-if="draftItem.note"
+                      class="mt-2 whitespace-pre-line rounded-lg bg-zinc-950/60 p-2 text-sm leading-relaxed text-zinc-300"
+                    >
+                      {{ draftItem.note }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Search Results -->
     <div v-if="searchMode" class="mt-4 animate-fade-in-up">

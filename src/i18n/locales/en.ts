@@ -77,7 +77,21 @@ export default {
     saving: "Saving...",
     map: "Map",
     up: "Up",
-    down: "Down"
+    down: "Down",
+    aiGenerateTitle: "AI itinerary draft",
+    aiGenerateDescription: "Generate a draft for the selected date. It is only a preview and will not be saved.",
+    aiGenerateButton: "Generate with AI",
+    aiGenerating: "Generating...",
+    aiNotesPlaceholder: "Add preferences, e.g. public transport, relaxed pacing, more food stops.",
+    aiDraftTitle: "AI draft",
+    aiFallbackWarning: "AI returned a fallback draft. It may be less detailed. Reason:",
+    aiWarningsTitle: "Warnings",
+    aiErrorFallback: "Failed to generate AI itinerary. Please try again later.",
+    aiDraftOnlyNotice: "Drafts are not saved automatically.",
+    aiGenerateForSelectedDate: "AI itinerary draft for {date}",
+    aiSelectedDateNotice: "This will generate recommendations only for the selected date: {date}.",
+    aiDraftNotSavedNotice: "Only the selected date will be drafted. It will not be saved to the itinerary automatically.",
+    aiGenerateSelectedDateButton: "Generate AI itinerary for this day"
   },
   home: {
     dashboard: "Trip Dashboard",

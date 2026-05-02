@@ -77,7 +77,21 @@ export default {
     saving: "儲存中...",
     map: "地圖",
     up: "上移",
-    down: "下移"
+    down: "下移",
+    aiGenerateTitle: "AI 行程草稿",
+    aiGenerateDescription: "依照目前選取日期產生一份草稿，只供預覽，不會寫入行程表。",
+    aiGenerateButton: "AI 產生行程",
+    aiGenerating: "產生中...",
+    aiNotesPlaceholder: "補充偏好，例如：想搭大眾運輸、避開太趕的行程、想多安排美食。",
+    aiDraftTitle: "AI 草稿",
+    aiFallbackWarning: "AI 服務回傳備援草稿，內容可能較簡略。原因：",
+    aiWarningsTitle: "提醒",
+    aiErrorFallback: "AI 行程產生失敗，請稍後再試。",
+    aiDraftOnlyNotice: "草稿不會自動儲存。",
+    aiGenerateForSelectedDate: "{date} 的 AI 行程草稿",
+    aiSelectedDateNotice: "目前只會針對所選日期 {date} 產生推薦行程草稿。",
+    aiDraftNotSavedNotice: "目前只會針對所選日期產生草稿，不會自動儲存到行程表。",
+    aiGenerateSelectedDateButton: "產生這一天的 AI 行程"
   },
   home: {
     dashboard: "行程儀表板",
