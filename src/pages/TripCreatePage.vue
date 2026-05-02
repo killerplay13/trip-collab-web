@@ -36,7 +36,7 @@ async function handleCreate() {
       startDate: startDate.value,
       endDate: endDate.value,
       notes: notes.value,
-      creatorNickname: creatorNickname.value || "Owner",
+      nickname: creatorNickname.value || "Owner",
       currency: currency.value,
     });
 
@@ -49,6 +49,7 @@ async function handleCreate() {
 
     session.setTripAccess(trip.id, {
       memberToken: trip.memberToken,
+      memberId: trip.memberId ?? null,
       role: trip.role ?? "owner",
       nickname: trip.nickname ?? creatorNickname.value,
       tripToken: trip.inviteToken,

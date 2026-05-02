@@ -58,6 +58,7 @@ async function handleJoin() {
 
     session.setTripAccess(access.tripId, {
       memberToken: access.memberToken,
+      memberId: access.memberId ?? null,
       role: access.role ?? null,
       nickname: access.nickname ?? trimmedNickname,
       joinedAt: access.joinedAt ?? null,

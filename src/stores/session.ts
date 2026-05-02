@@ -5,6 +5,7 @@ const lastTripKey = "trip-collab:lastTripId";
 
 export type TripAccess = {
   memberToken: string;
+  memberId?: string | null;
   role?: string | null;
   nickname?: string | null;
   joinedAt?: string | null;
@@ -19,6 +20,7 @@ function normalizeTripAccess(raw: unknown): TripAccess | null {
 
   return {
     memberToken,
+    memberId: typeof (raw as any).memberId === "string" ? (raw as any).memberId : null,
     role: typeof (raw as any).role === "string" ? (raw as any).role : null,
     nickname: typeof (raw as any).nickname === "string" ? (raw as any).nickname : null,
     joinedAt: typeof (raw as any).joinedAt === "string" ? (raw as any).joinedAt : null,
@@ -34,6 +36,7 @@ export const useSessionStore = defineStore("session", {
     setTripAccess(tripId: string, payload: TripAccess) {
       const access: TripAccess = {
         memberToken: payload.memberToken.trim(),
+        memberId: payload.memberId ?? null,
         role: payload.role ?? null,
         nickname: payload.nickname ?? null,
         joinedAt: payload.joinedAt ?? null,
@@ -71,6 +74,7 @@ export const useSessionStore = defineStore("session", {
         tokenKey(tripId),
         JSON.stringify({
           memberToken: access?.memberToken ?? "",
+          memberId: access?.memberId ?? null,
           role: access?.role ?? null,
           nickname: access?.nickname ?? null,
           joinedAt: access?.joinedAt ?? null,
@@ -103,6 +107,7 @@ export const useSessionStore = defineStore("session", {
           tokenKey(tripId),
           JSON.stringify({
             memberToken: access.memberToken,
+            memberId: access.memberId ?? null,
             role: access.role ?? null,
             nickname: access.nickname ?? null,
             joinedAt: access.joinedAt ?? null,

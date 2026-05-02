@@ -7,14 +7,18 @@ export type CreateTripPayload = {
   startDate: string;
   endDate: string;
   notes?: string;
-  creatorNickname: string;
+  nickname: string;
   currency?: string;
 };
 
 export async function createTrip(
   payload: CreateTripPayload,
-): Promise<Trip & { inviteToken?: string; memberToken?: string; role?: string; nickname?: string }> {
-  const res = await api.post<Trip>("/api/trips", payload);
+): Promise<Trip & { inviteToken?: string; memberToken?: string; memberId?: string; role?: string; nickname?: string }> {
+  const { nickname: creatorNickname, ...rest } = payload;
+  const res = await api.post<Trip>("/api/trips", {
+    ...rest,
+    creatorNickname,
+  });
   const data = res.data as any;
   const trip = (data?.trip ?? data?.data ?? data) as any;
   const inviteToken =
@@ -28,17 +32,22 @@ export async function createTrip(
     trip.memberToken = memberToken;
   }
 
+  const memberId = trip?.memberId ?? trip?.member_id ?? data?.memberId ?? data?.member_id;
+  if (memberId && !trip?.memberId) {
+    trip.memberId = memberId;
+  }
+
   const role = trip?.role ?? data?.role;
   if (role && !trip?.role) {
     trip.role = role;
   }
 
-  const nickname = trip?.nickname ?? data?.nickname;
-  if (nickname && !trip?.nickname) {
-    trip.nickname = nickname;
+  const returnedNickname = trip?.nickname ?? data?.nickname;
+  if (returnedNickname && !trip?.nickname) {
+    trip.nickname = returnedNickname;
   }
 
-  return trip as Trip & { inviteToken?: string; memberToken?: string; role?: string; nickname?: string };
+  return trip as Trip & { inviteToken?: string; memberToken?: string; memberId?: string; role?: string; nickname?: string };
 }
 
 export async function getTrip(tripId: string): Promise<Trip> {
@@ -66,6 +75,7 @@ export type JoinTripPayload = {
 export type JoinTripResult = {
   tripId: string;
   memberToken: string;
+  memberId?: string | null;
   role?: string | null;
   nickname?: string | null;
   joinedAt?: string | null;
@@ -92,6 +102,7 @@ export async function joinTrip(
       data?.memberToken ??
       data?.member_token ??
       "",
+    memberId: member?.id ?? member?.memberId ?? member?.member_id ?? data?.memberId ?? data?.member_id ?? null,
     role: member?.role ?? data?.role ?? null,
     nickname: member?.nickname ?? data?.nickname ?? payload.nickname ?? null,
     joinedAt: member?.joinedAt ?? member?.joined_at ?? data?.joinedAt ?? data?.joined_at ?? null,

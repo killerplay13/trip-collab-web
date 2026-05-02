@@ -3,10 +3,10 @@ import { ElMessage } from "element-plus";
 import i18n from "../i18n";
 import { useSessionStore } from "../stores/session";
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || ""; // <-- important for proxy
+const apiBaseURL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 export const api = axios.create({
-  baseURL,
+  baseURL: apiBaseURL,
   timeout: 15000,
 });
 
