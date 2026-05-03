@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, nextTick } from "vue";
 import { useRoute } from "vue-router";
 
 import type { ExpenseItem } from "../api/expenses";
@@ -59,6 +59,32 @@ const splitMethod = ref(props.initialExpense?.splitMethod || "EQUAL");
 
 // memberId -> amount in selectedCurrency
 const customAmounts = ref<Record<string, string>>({});
+
+const amountInputRef = ref<HTMLInputElement | null>(null);
+const isAmountFocused = ref(false);
+
+function insertOperator(op: string) {
+  if (props.submitting) return;
+
+  if (!amountInputRef.value) {
+    if (op === 'Backspace') {
+      amount.value = amount.value.slice(0, -1);
+    } else {
+      amount.value += op;
+    }
+    return;
+  }
+
+  const el = amountInputRef.value;
+  const start = el.selectionStart ?? amount.value.length;
+  const end = el.selectionEnd ?? amount.value.length;
+
+  amount.value = amount.value.slice(0, start) + op + amount.value.slice(end);
+  void nextTick(() => {
+    el.focus();
+    el.setSelectionRange(start + 1, start + 1);
+  });
+}
 
 const availableCurrencies = [
   { code: "TWD", label: "TWD - 台幣" },
@@ -282,6 +308,7 @@ function clearParticipants() {
 }
 
 function onAmountBlur() {
+  isAmountFocused.value = false;
   if (!amount.value) return;
   const value = parseAmountExpression(amount.value);
   if (Number.isFinite(value) && value > 0) {
@@ -363,53 +390,72 @@ function submit() {
 
     <div>
       <div class="text-sm text-zinc-300">{{ $t('expenses.category') }}</div>
-      <div class="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+      <div class="mt-2 grid grid-cols-3 sm:grid-cols-6 gap-2">
         <button
           v-for="option in categoryOptions"
           :key="option.value"
           type="button"
-          class="flex min-h-[3rem] items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-medium ring-1 transition-all active:scale-95 sm:gap-2 sm:text-sm flex-col sm:flex-row text-center break-words"
+          class="flex min-h-[2.5rem] items-center justify-center gap-1.5 rounded-xl px-2 py-1.5 text-sm font-medium ring-1 transition-all active:scale-95 flex-row text-center break-words"
           :class="category === option.value
-            ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30'
+            ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30 shadow-sm'
             : 'bg-zinc-900 text-zinc-300 ring-zinc-800 hover:bg-zinc-800'"
           :disabled="submitting"
           @click="category = option.value"
         >
-          <span aria-hidden="true" class="text-base">{{ option.icon }}</span>
-          <span class="break-words whitespace-normal leading-tight">{{ $t(`expenses.categories.${option.value}`) }}</span>
+          <span aria-hidden="true" class="text-lg leading-none">{{ option.icon }}</span>
+          <span class="leading-tight">{{ $t(`expenses.categories.${option.value}`) }}</span>
         </button>
       </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-4">
-      <label class="block">
+    <div class="grid grid-cols-3 sm:grid-cols-2 gap-3">
+      <label class="col-span-1 block">
         <div class="text-sm text-zinc-300">Currency</div>
         <select
           v-model="selectedCurrency"
-          class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 outline-none ring-1 ring-zinc-800 focus:ring-zinc-600"
+          class="mt-1 w-full rounded-xl bg-zinc-900 px-2 py-2 text-sm outline-none ring-1 ring-zinc-800 focus:ring-zinc-600"
           :disabled="submitting"
         >
           <option v-for="c in availableCurrencies" :key="c.code" :value="c.code">
-            {{ c.code }} {{ c.code === (baseCurrency || 'TWD') ? '(Base)' : '' }}
+            {{ c.code }}
           </option>
         </select>
       </label>
 
-      <label class="block">
+      <div class="col-span-2 sm:col-span-1 block">
         <div class="text-sm text-zinc-300">{{ $t('expenses.amountRequired') }}</div>
         <input
+          ref="amountInputRef"
           v-model="amount"
           type="text"
           inputmode="decimal"
           placeholder="e.g. 100 or 100+50"
-          class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 outline-none ring-1 ring-zinc-800 focus:ring-zinc-600"
+          class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 outline-none ring-1 ring-zinc-800 focus:ring-zinc-600 transition-all"
           :class="{'ring-red-500/50 focus:ring-red-500': amount && !isAmountValid}"
           :disabled="submitting"
+          @focus="isAmountFocused = true"
           @blur="onAmountBlur"
         />
+        
+        <transition
+          enter-active-class="transition ease-out duration-200"
+          enter-from-class="opacity-0 -translate-y-2 scale-y-95"
+          enter-to-class="opacity-100 translate-y-0 scale-y-100"
+          leave-active-class="transition ease-in duration-150"
+          leave-from-class="opacity-100 translate-y-0 scale-y-100"
+          leave-to-class="opacity-0 -translate-y-2 scale-y-95"
+        >
+          <div v-show="isAmountFocused" class="mt-2 flex flex-wrap gap-1.5 origin-top">
+            <button type="button" aria-label="Add" @pointerdown.prevent="insertOperator('+')" class="flex-1 min-h-[2.5rem] min-w-[2rem] rounded-lg bg-zinc-800 text-zinc-200 font-bold hover:bg-zinc-700 active:bg-zinc-600 transition-colors text-lg shadow-sm ring-1 ring-zinc-700/50">+</button>
+            <button type="button" aria-label="Subtract" @pointerdown.prevent="insertOperator('-')" class="flex-1 min-h-[2.5rem] min-w-[2rem] rounded-lg bg-zinc-800 text-zinc-200 font-bold hover:bg-zinc-700 active:bg-zinc-600 transition-colors text-lg shadow-sm ring-1 ring-zinc-700/50">-</button>
+            <button type="button" aria-label="Multiply" @pointerdown.prevent="insertOperator('*')" class="flex-1 min-h-[2.5rem] min-w-[2rem] rounded-lg bg-zinc-800 text-zinc-200 font-bold hover:bg-zinc-700 active:bg-zinc-600 transition-colors text-lg shadow-sm ring-1 ring-zinc-700/50">×</button>
+            <button type="button" aria-label="Divide" @pointerdown.prevent="insertOperator('/')" class="flex-1 min-h-[2.5rem] min-w-[2rem] rounded-lg bg-zinc-800 text-zinc-200 font-bold hover:bg-zinc-700 active:bg-zinc-600 transition-colors text-lg shadow-sm ring-1 ring-zinc-700/50">÷</button>
+          </div>
+        </transition>
+
         <p v-if="!amount" class="mt-1 text-xs text-zinc-500">{{ $t('expenses.required') }}</p>
         <p v-else-if="!isAmountValid" class="mt-1 text-xs text-red-400">Invalid amount or expression</p>
-      </label>
+      </div>
     </div>
 
     <label v-if="selectedCurrency !== (baseCurrency || 'TWD')" class="block">
@@ -449,7 +495,7 @@ function submit() {
       />
     </label>
 
-    <div class="grid grid-cols-2 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <label class="block">
         <div class="text-sm text-zinc-300">{{ $t('expenses.paymentSource') }}</div>
         <select

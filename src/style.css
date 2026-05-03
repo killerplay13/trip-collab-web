@@ -11,6 +11,9 @@
 }
 
 :root {
+  /* Opt-in to iOS system font scaling (Dynamic Type) */
+  font: -apple-system-body;
+  /* Re-apply custom typography to override the shorthand's font-family */
   font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
