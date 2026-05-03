@@ -122,7 +122,7 @@ export default {
     aiImportFailed: "AI 草稿匯入失敗，請稍後再試。",
     aiImportNoItems: "這一天沒有可匯入的 AI 草稿項目。",
     aiImportNotice: "匯入後會新增到正式行程，可再手動編輯或刪除。",
-    aiDuplicateAvoidanceNotice: "AI 目前會依照避免地點與補充需求推薦；跨日避免重複將在下一階段支援。",
+    aiDuplicateAvoidanceNotice: "AI 會參考目前旅程中已安排的行程，盡量避免重複推薦。",
     aiQualityWarningTitle: "匯入前請確認",
     aiQualityWarningDescription: "AI 草稿僅供參考，匯入前請確認地點、交通方式、營業時間與時間安排是否合理。",
     aiFallbackQualityWarning: "這是備用草稿，品質可能較低，建議重新產生或仔細檢查後再匯入。",

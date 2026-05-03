@@ -147,6 +147,21 @@ function formatAiTimeRange(item: AiItineraryDraftItem) {
   return start || end || "";
 }
 
+function formatAiWarningMessage(message: string) {
+  return message
+    .replace(/因\s*avoid_duplicate_places\s*為\s*true[，,]?\s*/gi, "系統已啟用避免重複推薦，")
+    .replace(/because\s+avoid_duplicate_places\s+is\s+true[,.]?\s*/gi, "duplicate recommendations are being avoided, ")
+    .replace(/avoid_duplicate_places\s+is\s+true/gi, "duplicate recommendations are being avoided")
+    .replace(/avoid_duplicate_places\s*為\s*true/gi, "系統已啟用避免重複推薦")
+    .replace(/existing_itinerary/gi, "已安排的行程")
+    .replace(/must_visit_places/gi, "必去地點")
+    .replace(/must_visit_place/gi, "必去地點")
+    .replace(/fallback_reason/gi, "備用草稿原因")
+    .replace(/未能再次加入/g, "這次先避免重複加入")
+    .replace(/JSON field/gi, "欄位")
+    .replace(/\bflag\b/gi, "設定");
+}
+
 function sortAiDraftItems(items: AiItineraryDraftItem[]) {
   return items
     .map((item, index) => ({ item, index }))
@@ -971,7 +986,7 @@ watch(searchQuery, (value) => {
         </div>
         <ul class="mt-2 space-y-1 text-sm text-zinc-300">
           <li v-for="warning in aiDraft.warnings" :key="warning">
-            {{ warning }}
+            {{ formatAiWarningMessage(warning) }}
           </li>
         </ul>
       </div>

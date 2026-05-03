@@ -122,7 +122,7 @@ export default {
     aiImportFailed: "Failed to import the AI draft. Please try again later.",
     aiImportNoItems: "There are no AI draft items to import for this day.",
     aiImportNotice: "Imported items will be added to the official itinerary. You can edit or delete them afterward.",
-    aiDuplicateAvoidanceNotice: "AI currently uses your avoid places and notes when recommending. Avoiding duplicates across days will be supported in a later phase.",
+    aiDuplicateAvoidanceNotice: "AI will consider existing itinerary items in this trip and try to avoid duplicate recommendations.",
     aiQualityWarningTitle: "Review before importing",
     aiQualityWarningDescription: "AI drafts are suggestions only. Please verify locations, transportation, opening hours, and timing before importing.",
     aiFallbackQualityWarning: "This is a fallback draft and may be lower quality. Consider regenerating or reviewing carefully before importing.",
