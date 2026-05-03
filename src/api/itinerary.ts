@@ -89,6 +89,20 @@ export type CreateItineraryPayload = {
   sortOrder?: number | null;
 };
 
+export type BulkCreateItineraryItem = {
+  startTime?: string | null;
+  endTime?: string | null;
+  title: string;
+  locationName?: string | null;
+  mapUrl?: string | null;
+  note?: string | null;
+};
+
+export type BulkCreateItineraryPayload = {
+  dayDate: string;
+  items: BulkCreateItineraryItem[];
+};
+
 export type PastePreviewItem = {
   lineNo: number;
   startTime?: string | null;
@@ -118,6 +132,16 @@ export async function createItineraryItem(
   const data = res.data as any;
   const item = data?.item ?? data?.data ?? data;
   return normalizeItineraryItem(item);
+}
+
+export async function bulkCreateItinerary(
+  tripId: string,
+  payload: BulkCreateItineraryPayload,
+): Promise<ItineraryItem[]> {
+  const res = await api.post(`/api/trips/${tripId}/itinerary/bulk`, payload);
+  const data = res.data as any;
+  const list = Array.isArray(data) ? data : (data?.items ?? data?.data ?? []);
+  return list.map(normalizeItineraryItem);
 }
 
 function stripUndefined<T extends Record<string, any>>(obj: T): Partial<T> {
