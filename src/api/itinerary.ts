@@ -30,6 +30,17 @@ function normalizeItineraryItem(raw: any): ItineraryItem {
   };
 }
 
+function normalizeAiQualityChecks(raw: any) {
+  if (!raw) return null;
+  return {
+    hasOutOfScopePlace: Boolean(raw?.hasOutOfScopePlace ?? raw?.has_out_of_scope_place),
+    hasUnrealisticTransport: Boolean(raw?.hasUnrealisticTransport ?? raw?.has_unrealistic_transport),
+    hasTimeConflict: Boolean(raw?.hasTimeConflict ?? raw?.has_time_conflict),
+    hasDuplicatePlace: Boolean(raw?.hasDuplicatePlace ?? raw?.has_duplicate_place),
+    needsUserReview: Boolean(raw?.needsUserReview ?? raw?.needs_user_review),
+  };
+}
+
 export async function getItineraryByDate(
   tripId: string,
   date: string,
@@ -74,6 +85,7 @@ export async function generateAiItineraryDraft(
     fallbackReason: draft?.fallbackReason ?? draft?.fallback_reason ?? null,
     explanation: draft?.explanation ?? null,
     warnings: Array.isArray(draft?.warnings) ? draft.warnings : [],
+    qualityChecks: normalizeAiQualityChecks(draft?.qualityChecks ?? draft?.quality_checks),
     days: Array.isArray(draft?.days) ? draft.days : [],
   };
 }

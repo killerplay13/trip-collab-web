@@ -132,6 +132,19 @@ const aiImportDisabled = computed(() =>
   !aiDraft.value ||
   !hasSelectedAiDraftItems.value,
 );
+const aiQualityChecks = computed(() => aiDraft.value?.qualityChecks ?? null);
+const aiQualityIssueKeys = computed(() => {
+  const checks = aiQualityChecks.value;
+  if (!checks) return [];
+  const issues: string[] = [];
+  if (checks.hasOutOfScopePlace) issues.push("itinerary.aiQualityOutOfScopePlace");
+  if (checks.hasUnrealisticTransport) issues.push("itinerary.aiQualityUnrealisticTransport");
+  if (checks.hasTimeConflict) issues.push("itinerary.aiQualityTimeConflict");
+  if (checks.hasDuplicatePlace) issues.push("itinerary.aiQualityDuplicatePlace");
+  if (checks.needsUserReview) issues.push("itinerary.aiQualityNeedsReview");
+  return issues;
+});
+const hasAiQualityIssues = computed(() => aiQualityIssueKeys.value.length > 0);
 
 function formatTimeRange(item: ItineraryItem) {
   const start = item.startTime ? item.startTime.slice(0, 5) : "";
@@ -254,7 +267,10 @@ async function handleImportAiDraft() {
     return;
   }
 
-  if (!window.confirm(t("itinerary.aiImportQualityConfirm"))) return;
+  const confirmMessage = hasAiQualityIssues.value
+    ? t("itinerary.aiQualityReviewBeforeImportConfirm")
+    : t("itinerary.aiImportQualityConfirm");
+  if (!window.confirm(confirmMessage)) return;
 
   aiImporting.value = true;
   aiImportError.value = null;
@@ -954,6 +970,25 @@ watch(searchQuery, (value) => {
         <p class="mt-1 text-amber-100/90">
           {{ $t('itinerary.aiQualityWarningDescription') }}
         </p>
+      </div>
+
+      <div
+        v-if="hasAiQualityIssues"
+        class="mt-4 rounded-xl bg-orange-500/10 p-3 text-sm leading-relaxed text-orange-100 ring-1 ring-orange-400/25"
+      >
+        <div class="text-xs font-semibold uppercase tracking-wide text-orange-300">
+          {{ $t('itinerary.aiQualityNeedsReview') }}
+        </div>
+        <ul class="mt-2 space-y-1.5 text-orange-100/90">
+          <li
+            v-for="issueKey in aiQualityIssueKeys"
+            :key="issueKey"
+            class="flex gap-2"
+          >
+            <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-300"></span>
+            <span>{{ $t(issueKey) }}</span>
+          </li>
+        </ul>
       </div>
 
       <div class="mt-4 rounded-xl bg-sky-500/10 p-3 text-sm leading-relaxed text-sky-100 ring-1 ring-sky-500/20">

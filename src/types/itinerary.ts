@@ -48,11 +48,20 @@ export type AiItineraryDraftDay = {
   items: AiItineraryDraftItem[];
 };
 
+export type AiItineraryQualityChecks = {
+  hasOutOfScopePlace: boolean;
+  hasUnrealisticTransport: boolean;
+  hasTimeConflict: boolean;
+  hasDuplicatePlace: boolean;
+  needsUserReview: boolean;
+};
+
 export type AiItineraryGenerateResponse = {
   tripId: string;
   fallback: boolean;
   fallbackReason?: string | null;
   explanation?: string | null;
   warnings: string[];
+  qualityChecks?: AiItineraryQualityChecks | null;
   days: AiItineraryDraftDay[];
 };
