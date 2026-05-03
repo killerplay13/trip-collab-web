@@ -175,13 +175,13 @@ onMounted(() => {
         {{ $t('home.tripTitle') }}
       </div>
       <div v-if="tripLoading" class="mt-1 h-8 w-3/4 rounded bg-zinc-800 animate-pulse"></div>
-      <div v-else class="text-2xl font-medium text-zinc-100">{{ tripTitle || $t('home.untitledTrip') }}</div>
+      <div v-else class="text-2xl font-medium text-zinc-100 break-words whitespace-normal">{{ tripTitle || $t('home.untitledTrip') }}</div>
       <p v-if="tripErrorMsg" class="mt-3 text-sm text-red-400 bg-red-400/10 p-2 rounded-lg border border-red-400/20">{{ tripErrorMsg }}</p>
     </div>
 
     <!-- Invite Card -->
     <div class="glass-card p-5 mb-5 animate-fade-in-up" style="animation-delay: 100ms;">
-      <div class="flex items-start justify-between gap-4">
+      <div class="flex flex-col sm:flex-row items-start sm:justify-between gap-4">
         <div>
           <div class="text-xs font-semibold tracking-wider text-blue-400 uppercase mb-1">{{ $t('home.inviteMembers') }}</div>
           <div class="text-sm text-zinc-400 leading-relaxed">
@@ -229,7 +229,7 @@ onMounted(() => {
             <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-zinc-700 to-zinc-600 flex items-center justify-center text-xs font-bold text-white shadow-inner">
               {{ member.nickname.charAt(0).toUpperCase() }}
             </div>
-            <span class="text-sm font-medium text-zinc-200">{{ member.nickname }}</span>
+            <span class="text-sm font-medium text-zinc-200 break-words whitespace-normal">{{ member.nickname }}</span>
           </div>
           <span
             v-if="member.role === 'owner'"

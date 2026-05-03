@@ -66,7 +66,7 @@ async function go(path: string) {
               <component :is="tab.icon" />
             </el-icon>
             
-            <span class="relative z-10 text-[10px] font-medium tracking-wide transition-all duration-300"
+            <span class="relative z-10 text-[10px] sm:text-xs font-medium tracking-wide transition-all duration-300 w-full truncate px-1 text-center"
                   :class="isActive(tab.to(tripId)) ? 'opacity-100' : 'opacity-70'">
               {{ tab.label }}
             </span>

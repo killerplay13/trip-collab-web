@@ -14,6 +14,7 @@ import type { WalletSummaryResponse, WalletTransactionListResponse } from "../ap
 import { Edit, Minus, Plus, Switch } from "@element-plus/icons-vue";
 import BottomSheet from "../components/BottomSheet.vue";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
+import { formatAmount } from "../utils/formatters";
 
 const route = useRoute();
 const { t } = useI18n();
@@ -215,28 +216,28 @@ function formatDate(isoStr: string) {
       </div>
       <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
         <button
-          class="flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-zinc-500/10 px-3 text-xs font-medium text-zinc-300 ring-1 ring-zinc-500/20 transition-all hover:bg-zinc-500/20 active:scale-95 sm:px-4 sm:text-sm"
+          class="flex min-h-[2.5rem] py-2 items-center justify-center gap-2 break-words whitespace-normal rounded-xl bg-zinc-500/10 px-3 text-xs font-medium text-zinc-300 ring-1 ring-zinc-500/20 transition-all hover:bg-zinc-500/20 active:scale-95 sm:px-4 sm:text-sm"
           @click="adjustmentSheetOpen = true"
         >
           <el-icon><Edit /></el-icon>
           <span>{{ $t('wallet.adjust') }}</span>
         </button>
         <button
-          class="flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-400 ring-1 ring-red-500/20 transition-all hover:bg-red-500/20 active:scale-95 sm:px-4 sm:text-sm"
+          class="flex min-h-[2.5rem] py-2 items-center justify-center gap-2 break-words whitespace-normal rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-400 ring-1 ring-red-500/20 transition-all hover:bg-red-500/20 active:scale-95 sm:px-4 sm:text-sm"
           @click="withdrawalSheetOpen = true"
         >
           <el-icon><Minus /></el-icon>
           <span>{{ $t('wallet.withdraw') }}</span>
         </button>
         <button
-          class="flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-amber-500/10 px-3 text-xs font-medium text-amber-500 ring-1 ring-amber-500/20 transition-all hover:bg-amber-500/20 active:scale-95 sm:px-4 sm:text-sm"
+          class="flex min-h-[2.5rem] py-2 items-center justify-center gap-2 break-words whitespace-normal rounded-xl bg-amber-500/10 px-3 text-xs font-medium text-amber-500 ring-1 ring-amber-500/20 transition-all hover:bg-amber-500/20 active:scale-95 sm:px-4 sm:text-sm"
           @click="exchangeSheetOpen = true"
         >
           <el-icon><Switch /></el-icon>
           <span>{{ $t('wallet.exchange') }}</span>
         </button>
         <button
-          class="flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-emerald-500/10 px-3 text-xs font-medium text-emerald-400 ring-1 ring-emerald-500/20 transition-all hover:bg-emerald-500/20 active:scale-95 sm:px-4 sm:text-sm"
+          class="flex min-h-[2.5rem] py-2 items-center justify-center gap-2 break-words whitespace-normal rounded-xl bg-emerald-500/10 px-3 text-xs font-medium text-emerald-400 ring-1 ring-emerald-500/20 transition-all hover:bg-emerald-500/20 active:scale-95 sm:px-4 sm:text-sm"
           @click="depositSheetOpen = true"
         >
           <el-icon><Plus /></el-icon>
@@ -254,7 +255,7 @@ function formatDate(isoStr: string) {
       <div class="grid grid-cols-2 gap-4">
         <div v-for="bal in summary?.balances" :key="bal.currency" class="rounded-3xl bg-zinc-900 p-5 ring-1 ring-zinc-800">
           <p class="text-sm font-medium text-zinc-400">{{ $t('wallet.balanceLabel', { currency: bal.currency }) }}</p>
-          <p class="mt-1 text-2xl font-bold text-white">{{ bal.balance.toFixed(2) }}</p>
+          <p class="mt-1 text-2xl font-bold text-white">{{ formatAmount(bal.balance) }}</p>
         </div>
       </div>
 
@@ -291,10 +292,10 @@ function formatDate(isoStr: string) {
             </div>
             <div class="text-right">
               <div class="font-bold text-lg" :class="txn.direction === 'IN' ? 'text-emerald-400' : 'text-red-400'">
-                {{ txn.direction === 'IN' ? '+' : '-' }}{{ txn.originalAmount.toFixed(2) }} {{ txn.originalCurrency }}
+                {{ txn.direction === 'IN' ? '+' : '-' }}{{ formatAmount(txn.originalAmount) }} {{ txn.originalCurrency }}
               </div>
               <div v-if="txn.originalCurrency !== summary?.baseCurrency" class="text-[10px] text-zinc-500 font-mono">
-                ≈ {{ txn.computedBaseAmount.toFixed(2) }} {{ summary?.baseCurrency }}
+                ≈ {{ formatAmount(txn.computedBaseAmount) }} {{ summary?.baseCurrency }}
               </div>
             </div>
           </div>

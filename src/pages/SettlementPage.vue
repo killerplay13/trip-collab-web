@@ -6,6 +6,7 @@ import { useTripAccess } from "../composables/useTripAccess";
 import BottomSheet from "../components/BottomSheet.vue";
 import { getSettlements, createExpense } from "../api/expenses";
 import type { ExpenseSettlement } from "../api/expenses";
+import { formatMoney } from "../utils/formatters";
 
 const route = useRoute();
 const { t } = useI18n();
@@ -26,13 +27,6 @@ function toYmd(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-function formatMoney(amount: number, currency = "TWD") {
-  return new Intl.NumberFormat("zh-TW", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
 
 async function loadSettlements() {
   if (!tripId.value) return;
@@ -172,7 +166,7 @@ async function handleSettle(item: ExpenseSettlement) {
                 {{ (item.to || item.toMemberId || "-").charAt(0).toUpperCase() }}
               </div>
             </div>
-            <div class="text-lg font-bold text-zinc-100">
+            <div class="text-lg font-bold text-emerald-400 font-mono break-words whitespace-normal">
               {{ formatMoney(item.amount, item.currency || "TWD") }}
             </div>
           </div>

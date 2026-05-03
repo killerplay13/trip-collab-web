@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { ArrowLeft, ArrowRight, Calendar, DocumentAdd, Plus } from "@element-plus/icons-vue";
+import { Calendar, DocumentAdd, Plus } from "@element-plus/icons-vue";
 import {
   bulkCreateItinerary,
   createItineraryItem,
@@ -16,6 +16,8 @@ import {
   searchItineraryItems,
 } from "../api/itinerary";
 import type { PastePreviewResult } from "../api/itinerary";
+import { getTrip } from "../api/trips";
+import type { Trip } from "../types/trip";
 import type { AiItineraryDraftItem, AiItineraryGenerateResponse, ItineraryItem } from "../types/itinerary";
 import BottomSheet from "../components/BottomSheet.vue";
 import ItineraryCreateForm from "../components/ItineraryCreateForm.vue";
@@ -38,20 +40,41 @@ function pad2(n: number) {
 function toYmd(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
-function addDays(ymd: string, delta: number) {
-  const [y = new Date().getFullYear(), m = 1, day = 1] = ymd
-    .split("-")
-    .map(Number);
-  const d = new Date(y, m - 1, day);
-  d.setDate(d.getDate() + delta);
-  return toYmd(d);
-}
+
+
+const trip = ref<Trip | null>(null);
 
 const selectedDate = computed<string>(() => {
   const q = route.query.date;
   if (typeof q === "string" && /^\d{4}-\d{2}-\d{2}$/.test(q)) return q;
-  return toYmd(new Date()); // v0.1: default today (later we can use trip.startDate)
+  if (trip.value?.startDate) return trip.value.startDate;
+  return toYmd(new Date());
 });
+
+const dateTabs = computed(() => {
+  if (!trip.value || !trip.value.startDate || !trip.value.endDate) return [];
+  const start = new Date(trip.value.startDate);
+  const end = new Date(trip.value.endDate);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) return [];
+
+  const tabs = [];
+  let current = new Date(start);
+  let dayNum = 1;
+  while (current <= end && dayNum <= 60) {
+    const dateStr = toYmd(current);
+    tabs.push({
+      dateStr,
+      dayNum,
+      displayDate: `${current.getMonth() + 1}/${current.getDate()}`,
+      weekday: current.toLocaleDateString(locale.value || 'en-US', { weekday: 'short' }),
+    });
+    current.setDate(current.getDate() + 1);
+    dayNum++;
+  }
+  return tabs;
+});
+
+
 
 const loading = ref(false);
 const errorMsg = ref("");
@@ -367,12 +390,7 @@ async function goDate(date: string) {
   });
 }
 
-async function prevDay() {
-  await goDate(addDays(selectedDate.value, -1));
-}
-async function nextDay() {
-  await goDate(addDays(selectedDate.value, +1));
-}
+
 
 const sheetOpen = ref(false);
 const sheetMode = ref<"create" | "edit">("create");
@@ -669,7 +687,16 @@ async function openExpenseFromItinerary(item: ItineraryItem) {
   });
 }
 
-onMounted(() => void load());
+onMounted(async () => {
+  if (tripId.value) {
+    try {
+      trip.value = await getTrip(tripId.value);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  void load();
+});
 watch(() => selectedDate.value, () => {
   aiDraft.value = null;
   aiError.value = "";
@@ -706,61 +733,13 @@ watch(searchQuery, (value) => {
     >
       <div class="h-3.5 w-3.5 rounded-full border-2 border-emerald-300/30 border-t-emerald-300 animate-spin"></div>
     </div>
-    <!-- Header Area -->
-    <div class="sticky top-0 z-20 -mx-4 px-4 pt-6 pb-4 bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-800/50">
-      <!-- Search Bar -->
-      <div class="space-y-4 mb-4">
-        <label class="block">
-          <div class="relative">
-            <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
-              <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-            </div>
-            <input
-              v-model="searchQuery"
-              :placeholder="$t('itinerary.searchPlaceholder')"
-              class="w-full rounded-2xl bg-zinc-900/60 pl-10 pr-10 py-3 text-sm text-zinc-100 placeholder-zinc-500 ring-1 ring-zinc-800/80 focus:ring-emerald-500/50 focus:bg-zinc-900 transition-all shadow-inner"
-            />
-            <button
-              v-if="searchQuery"
-              class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-zinc-200"
-              @click="searchQuery = ''"
-              type="button"
-              aria-label="Clear search"
-            >
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-            </button>
-          </div>
-        </label>
-        <div v-if="searchLoading" class="text-xs font-medium text-emerald-400 flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></div>{{ $t('itinerary.searching') }}</div>
-        <div v-else-if="searchError" class="text-xs text-red-400 bg-red-400/10 p-2 rounded-lg">{{ searchError }}</div>
-      </div>
-
-      <!-- Date Navigator (only when not searching) -->
-      <div v-if="!searchMode" class="flex items-center justify-between">
-        <div class="flex flex-col">
-          <h1 class="text-2xl font-bold tracking-tight text-gradient">{{ $t('itinerary.itineraryTitle') }}</h1>
-          <p class="mt-0.5 text-sm font-medium text-emerald-400">{{ selectedDate }}</p>
-        </div>
-
-        <div class="flex gap-2">
-          <button
-            class="w-10 h-10 flex items-center justify-center rounded-xl bg-zinc-900/80 text-zinc-300 ring-1 ring-zinc-800 transition-all hover:bg-zinc-800 hover:text-white active:scale-95 shadow-sm"
-            @click="prevDay"
-          >
-            <el-icon><ArrowLeft /></el-icon>
-          </button>
-          <button
-            class="w-10 h-10 flex items-center justify-center rounded-xl bg-zinc-900/80 text-zinc-300 ring-1 ring-zinc-800 transition-all hover:bg-zinc-800 hover:text-white active:scale-95 shadow-sm"
-            @click="nextDay"
-          >
-            <el-icon><ArrowRight /></el-icon>
-          </button>
-        </div>
-      </div>
+    <!-- Non-Sticky Title -->
+    <div class="pt-6 pb-3">
+      <h1 class="text-3xl font-bold tracking-tight text-gradient">{{ $t('itinerary.itineraryTitle') }}</h1>
     </div>
 
-    <!-- AI Helper Panel -->
-    <section v-if="!searchMode" class="mt-4 glass-card p-4 animate-fade-in-up">
+    <!-- AI Helper Panel (Non-Sticky) -->
+    <section v-if="!searchMode" class="mb-6 glass-card p-4 animate-fade-in-up">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <div class="flex flex-wrap items-center gap-2">
@@ -795,7 +774,7 @@ watch(searchQuery, (value) => {
 
         <div>
           <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">{{ $t('itinerary.aiModeTitle') }}</div>
-          <div class="grid grid-cols-3 gap-1.5">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
             <button
               v-for="option in aiModeOptions"
               :key="option.value"
@@ -901,6 +880,52 @@ watch(searchQuery, (value) => {
         </div>
       </div>
     </section>
+
+    <!-- Sticky Header (Search + Tabs) -->
+    <div class="sticky top-0 z-30 -mx-4 px-4 py-2 bg-zinc-950/90 backdrop-blur-xl border-b border-zinc-800/50 shadow-md flex flex-col gap-2">
+      <!-- Minimal Search Bar -->
+      <div class="w-full relative">
+        <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+          <svg class="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </div>
+        <input
+          v-model="searchQuery"
+          :placeholder="$t('itinerary.searchPlaceholder')"
+          class="w-full rounded-xl bg-zinc-900/40 pl-10 pr-10 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 ring-1 ring-zinc-800/50 focus:ring-emerald-500/30 focus:bg-zinc-900/60 transition-all shadow-inner"
+        />
+        <button
+          v-if="searchQuery"
+          class="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-zinc-200"
+          @click="searchQuery = ''"
+          type="button"
+          aria-label="Clear search"
+        >
+          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+      
+      <div v-if="searchLoading" class="text-[10px] font-medium text-emerald-400 flex items-center gap-1.5 px-1"><div class="w-1 h-1 rounded-full bg-emerald-400 animate-ping"></div>{{ $t('itinerary.searching') }}</div>
+      <div v-else-if="searchError" class="text-[10px] text-red-400 bg-red-400/5 p-1.5 rounded-lg border border-red-400/10">{{ searchError }}</div>
+
+      <!-- Date Tabs -->
+      <div v-if="!searchMode && dateTabs.length > 0" class="flex overflow-x-auto gap-2 sm:mx-0 sm:px-0 pb-0.5" style="scrollbar-width: none;">
+        <button
+          v-for="tab in dateTabs"
+          :key="tab.dateStr"
+          @click="goDate(tab.dateStr)"
+          class="flex flex-col items-center justify-center min-w-[4rem] px-2.5 py-1.5 rounded-xl border transition-all shrink-0 break-words whitespace-normal"
+          :class="selectedDate === tab.dateStr 
+            ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300 shadow-md shadow-emerald-500/10' 
+            : 'bg-zinc-900/60 border-zinc-800/80 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'"
+        >
+          <span class="text-[9px] font-bold uppercase tracking-wider mb-0.5" :class="selectedDate === tab.dateStr ? 'text-emerald-400' : 'text-zinc-500'">Day {{ tab.dayNum }}</span>
+          <div class="text-sm font-bold flex items-baseline gap-1">
+            {{ tab.displayDate }}
+            <span class="text-[9px] font-medium opacity-80" :class="selectedDate === tab.dateStr ? 'text-emerald-400' : 'text-zinc-500'">{{ tab.weekday }}</span>
+          </div>
+        </button>
+      </div>
+    </div>
 
     <div
       v-if="!searchMode && aiImportSuccess"
@@ -1205,7 +1230,7 @@ watch(searchQuery, (value) => {
                   </span>
                 </div>
 
-                <div class="min-w-0 truncate text-lg font-bold text-zinc-100 mb-1">
+                <div class="min-w-0 break-words whitespace-normal text-lg font-bold text-zinc-100 mb-1">
                   {{ it.title ?? $t('itinerary.untitled') }}
                 </div>
 
@@ -1214,7 +1239,7 @@ watch(searchQuery, (value) => {
                   class="mt-2 flex items-center gap-1.5 text-sm text-zinc-400"
                 >
                   <svg class="w-4 h-4 text-zinc-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                  <span class="truncate">{{ it.locationName }}</span>
+                  <span class="break-words whitespace-normal">{{ it.locationName }}</span>
                 </div>
 
                 <div

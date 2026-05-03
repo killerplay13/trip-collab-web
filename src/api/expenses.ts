@@ -29,6 +29,11 @@ export type ExpenseSummary = {
   totalBalance?: number | null;
   totalPaid?: number | null;
   unsettledAmount?: number | null;
+  total?: number | null;
+  totalExpenses?: number | null;
+  balance?: number | null;
+  netBalance?: number | null;
+  paid?: number | null;
   settlements?: ExpenseSettlement[];
   members?: ExpenseMember[];
   [key: string]: unknown;

@@ -5,6 +5,7 @@ import { useRoute } from "vue-router";
 import type { ExpenseItem } from "../api/expenses";
 import { getWalletSummary } from "../api/wallet";
 import type { WalletSummaryResponse } from "../api/wallet";
+import { formatAmount, parseAmountExpression } from "../utils/formatters";
 
 const AUTO_FX_SOURCE = "ExchangeRate-API";
 
@@ -81,7 +82,7 @@ const walletLoading = ref(false);
 const walletError = ref("");
 
 const parsedAmount = computed(() => {
-  const value = Number(amount.value);
+  const value = parseAmountExpression(amount.value);
   return Number.isFinite(value) ? value : 0;
 });
 
@@ -101,12 +102,6 @@ const walletBalanceHintClass = computed(() => {
   return "text-zinc-400";
 });
 
-function formatWalletBalance(value: number) {
-  return new Intl.NumberFormat("zh-TW", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
 
 async function loadWalletSummary() {
   if (!tripId.value || walletLoading.value) return;
@@ -216,8 +211,8 @@ watch(
   }
 );
 const isAmountValid = computed(() => {
-  const parsedAmount = Number(amount.value);
-  return Number.isFinite(parsedAmount) && parsedAmount > 0;
+  const value = parseAmountExpression(amount.value);
+  return Number.isFinite(value) && value > 0;
 });
 const isFxRateValid = computed(() => {
   if (selectedCurrency.value === (props.baseCurrency || "TWD")) return true;
@@ -230,8 +225,7 @@ const customAmountsSum = computed(() => {
 });
 const isCustomSplitValid = computed(() => {
   if (splitMethod.value !== "CUSTOM_AMOUNT") return true;
-  const parsedAmount = Number(amount.value);
-  return Math.abs(customAmountsSum.value - parsedAmount) < 0.01;
+  return Math.abs(customAmountsSum.value - parsedAmount.value) < 0.01;
 });
 const isFormValid = computed(() => {
   return (
@@ -287,12 +281,19 @@ function clearParticipants() {
   participantMemberIds.value = [];
 }
 
+function onAmountBlur() {
+  if (!amount.value) return;
+  const value = parseAmountExpression(amount.value);
+  if (Number.isFinite(value) && value > 0) {
+    amount.value = String(Number(value.toFixed(2)));
+  }
+}
+
 function submit() {
   if (!title.value.trim()) return;
-  if (!(Number(amount.value) > 0)) return;
-
-  const parsedAmount = Number(amount.value);
   if (!isAmountValid.value) return;
+
+  const finalAmount = parsedAmount.value;
   if (!expenseDate.value.trim()) return;
   if (paymentSource.value === "PERSONAL" && !paidByMemberId.value.trim()) return;
 
@@ -300,7 +301,7 @@ function submit() {
 
   const isForeign = selectedCurrency.value !== (props.baseCurrency || "TWD");
   const finalFxRate = isForeign ? Number(fxRate.value) : 1;
-  const finalParsedAmount = isForeign ? Number((parsedAmount * finalFxRate).toFixed(2)) : parsedAmount;
+  const finalParsedAmount = isForeign ? Number((finalAmount * finalFxRate).toFixed(2)) : finalAmount;
   const isSharedWallet = paymentSource.value === "SHARED_WALLET";
 
   let finalCustomSplits: Array<{memberId: string, amount: number}> | undefined = undefined;
@@ -330,8 +331,8 @@ function submit() {
 
   emit("submit", {
     title: title.value.trim(),
-    amount: isForeign || isSharedWallet ? undefined : parsedAmount,
-    originalAmount: isForeign || isSharedWallet ? parsedAmount : undefined,
+    amount: isForeign || isSharedWallet ? undefined : finalAmount,
+    originalAmount: isForeign || isSharedWallet ? finalAmount : undefined,
     originalCurrency: isForeign || isSharedWallet ? selectedCurrency.value : undefined,
     fxRate: isForeign || isSharedWallet ? finalFxRate : undefined,
     fxSource: (isForeign || isSharedWallet) && fxSource.value ? fxSource.value : undefined,
@@ -362,12 +363,12 @@ function submit() {
 
     <div>
       <div class="text-sm text-zinc-300">{{ $t('expenses.category') }}</div>
-      <div class="mt-2 grid grid-cols-3 gap-2">
+      <div class="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
         <button
           v-for="option in categoryOptions"
           :key="option.value"
           type="button"
-          class="flex h-12 items-center justify-center gap-1.5 rounded-xl px-2 text-xs font-medium ring-1 transition-all active:scale-95 sm:gap-2 sm:text-sm"
+          class="flex min-h-[3rem] items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-medium ring-1 transition-all active:scale-95 sm:gap-2 sm:text-sm flex-col sm:flex-row text-center break-words"
           :class="category === option.value
             ? 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30'
             : 'bg-zinc-900 text-zinc-300 ring-zinc-800 hover:bg-zinc-800'"
@@ -375,7 +376,7 @@ function submit() {
           @click="category = option.value"
         >
           <span aria-hidden="true" class="text-base">{{ option.icon }}</span>
-          <span class="truncate">{{ $t(`expenses.categories.${option.value}`) }}</span>
+          <span class="break-words whitespace-normal leading-tight">{{ $t(`expenses.categories.${option.value}`) }}</span>
         </button>
       </div>
     </div>
@@ -398,14 +399,16 @@ function submit() {
         <div class="text-sm text-zinc-300">{{ $t('expenses.amountRequired') }}</div>
         <input
           v-model="amount"
-          type="number"
-          min="0"
-          step="0.01"
-          placeholder="0"
+          type="text"
+          inputmode="decimal"
+          placeholder="e.g. 100 or 100+50"
           class="mt-1 w-full rounded-xl bg-zinc-900 px-3 py-2 outline-none ring-1 ring-zinc-800 focus:ring-zinc-600"
+          :class="{'ring-red-500/50 focus:ring-red-500': amount && !isAmountValid}"
           :disabled="submitting"
+          @blur="onAmountBlur"
         />
-        <p v-if="!(Number(amount) > 0)" class="mt-1 text-xs text-zinc-500">{{ $t('expenses.required') }}</p>
+        <p v-if="!amount" class="mt-1 text-xs text-zinc-500">{{ $t('expenses.required') }}</p>
+        <p v-else-if="!isAmountValid" class="mt-1 text-xs text-red-400">Invalid amount or expression</p>
       </label>
     </div>
 
@@ -428,11 +431,11 @@ function submit() {
       <p v-else-if="fxSource" class="mt-1 text-xs text-zinc-500">
         {{ $t('expenses.fxSourceLabel', { source: fxSource }) }}
       </p>
-      <p v-else-if="Number(amount) > 0" class="mt-1 text-xs text-zinc-400">
-        ≈ {{ (Number(amount) * Number(fxRate)).toFixed(2) }} {{ baseCurrency || 'TWD' }}
+      <p v-else-if="parsedAmount > 0" class="mt-1 text-xs text-zinc-400">
+        ≈ {{ formatAmount(parsedAmount * Number(fxRate)) }} {{ baseCurrency || 'TWD' }}
       </p>
-      <p v-if="Number(fxRate) > 0 && fxSource && Number(amount) > 0" class="mt-1 text-xs text-zinc-400">
-        ≈ {{ (Number(amount) * Number(fxRate)).toFixed(2) }} {{ baseCurrency || 'TWD' }}
+      <p v-if="Number(fxRate) > 0 && fxSource && parsedAmount > 0" class="mt-1 text-xs text-zinc-400">
+        ≈ {{ formatAmount(parsedAmount * Number(fxRate)) }} {{ baseCurrency || 'TWD' }}
       </p>
     </label>
 
@@ -467,7 +470,7 @@ function submit() {
           <span v-else>
             {{ $t('expenses.walletBalanceHint', {
               currency: selectedCurrency,
-              amount: formatWalletBalance(selectedWalletBalance),
+              amount: formatAmount(selectedWalletBalance),
             }) }}
           </span>
         </p>
@@ -554,7 +557,7 @@ function submit() {
       <div class="flex justify-between items-end mb-1">
         <div class="text-sm text-zinc-300">Custom Splits</div>
         <div class="text-xs font-mono" :class="isCustomSplitValid ? 'text-emerald-400' : 'text-amber-500'">
-          Sum: {{ customAmountsSum.toFixed(2) }} / {{ Number(amount).toFixed(2) }}
+          Sum: {{ formatAmount(customAmountsSum) }} / {{ formatAmount(parsedAmount) }}
         </div>
       </div>
       <div class="space-y-2 rounded-xl bg-zinc-900 px-3 py-3 ring-1 ring-zinc-800">
@@ -563,7 +566,7 @@ function submit() {
           :key="member.memberId"
           class="flex items-center gap-3 text-sm text-zinc-200"
         >
-          <span class="w-24 truncate">{{ member.name }}</span>
+          <span class="w-1/3 min-w-[5rem] break-words whitespace-normal">{{ member.name }}</span>
           <input
             v-model="customAmounts[member.memberId]"
             type="number"

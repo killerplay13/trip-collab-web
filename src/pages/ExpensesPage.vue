@@ -11,6 +11,7 @@ import type { TripMember } from "../api/tripMembers";
 import { useTripAccess } from "../composables/useTripAccess";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { useI18n } from "vue-i18n";
+import { formatMoney } from "../utils/formatters";
 
 const route = useRoute();
 const router = useRouter();
@@ -39,24 +40,7 @@ function toYmd(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-function toNumber(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return null;
-}
 
-function formatMoney(value: unknown, currency = "TWD") {
-  const amount = toNumber(value);
-  if (amount === null) return "";
-  return new Intl.NumberFormat("zh-TW", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(amount);
-}
 
 function formatPaymentSource(source: string | null | undefined) {
   if (!source) return t("expenses.personal");
@@ -467,7 +451,7 @@ watch(
             >
               <div class="flex items-start justify-between gap-4">
                 <div class="min-w-0 flex-1">
-                  <div class="truncate text-base font-semibold text-zinc-100">
+                  <div class="break-words whitespace-normal text-base font-semibold text-zinc-100">
                     <span class="mr-1.5" aria-hidden="true">{{ getCategoryIcon(item.category) }}</span>
                     {{ item.title || $t('expenses.untitled') }}
                   </div>
