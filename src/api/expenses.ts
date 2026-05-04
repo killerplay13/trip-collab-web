@@ -250,11 +250,17 @@ export async function getSettlements(tripId: string): Promise<ExpenseSettlement[
   return list.map(normalizeExpenseSettlement);
 }
 
-export async function explainAiSettlement(tripId: string): Promise<AiSettlementExplainResponse> {
+export async function explainAiSettlement(
+  tripId: string,
+  language?: string,
+): Promise<AiSettlementExplainResponse> {
   const { data } = await api.post(
     `/api/trips/${tripId}/expenses/ai/explain`,
     undefined,
-    { timeout: 60000 },
+    {
+      timeout: 60000,
+      params: language ? { language } : undefined,
+    },
   );
 
   return {

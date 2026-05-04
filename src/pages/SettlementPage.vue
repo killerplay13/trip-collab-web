@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useTripAccess } from "../composables/useTripAccess";
@@ -9,7 +9,7 @@ import type { AiSettlementExplainResponse, ExpenseSettlement } from "../api/expe
 import { formatMoney } from "../utils/formatters";
 
 const route = useRoute();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const tripId = computed(() => String(route.params.tripId || ""));
 const { isOwner, role } = useTripAccess();
 
@@ -21,6 +21,11 @@ const settling = ref(false);
 const aiExplain = ref<AiSettlementExplainResponse | null>(null);
 const aiExplainLoading = ref(false);
 const aiExplainError = ref("");
+
+watch(locale, () => {
+  aiExplain.value = null;
+  aiExplainError.value = "";
+});
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -82,7 +87,7 @@ async function handleExplainAi() {
   aiExplain.value = null;
 
   try {
-    aiExplain.value = await explainAiSettlement(tripId.value);
+    aiExplain.value = await explainAiSettlement(tripId.value, locale.value);
   } catch (e: any) {
     const status = e?.response?.status;
 
