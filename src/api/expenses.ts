@@ -64,6 +64,14 @@ export type ExpenseSettlement = {
   currency?: string | null;
 };
 
+export type AiSettlementExplainResponse = {
+  tripId: string;
+  currency: string;
+  summary: string;
+  steps: string[];
+  tips: string[];
+};
+
 export type ExpenseMember = {
   memberId: string;
   name: string;
@@ -240,6 +248,22 @@ export async function getSettlements(tripId: string): Promise<ExpenseSettlement[
   const data = res.data as any;
   const list = Array.isArray(data) ? data : data?.items ?? data?.settlements ?? data?.data ?? [];
   return list.map(normalizeExpenseSettlement);
+}
+
+export async function explainAiSettlement(tripId: string): Promise<AiSettlementExplainResponse> {
+  const { data } = await api.post(
+    `/api/trips/${tripId}/expenses/ai/explain`,
+    undefined,
+    { timeout: 60000 },
+  );
+
+  return {
+    tripId: data?.tripId ?? "",
+    currency: data?.currency ?? "",
+    summary: data?.summary ?? "",
+    steps: Array.isArray(data?.steps) ? data.steps : [],
+    tips: Array.isArray(data?.tips) ? data.tips : [],
+  };
 }
 
 export async function createExpense(tripId: string, payload: CreateExpensePayload): Promise<ExpenseItem> {

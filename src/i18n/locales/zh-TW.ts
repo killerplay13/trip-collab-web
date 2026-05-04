@@ -274,7 +274,21 @@ export default {
     memberDesc: "只有行程建立者可以管理結算動作。您可以在「記帳」頁面查看您的結餘。",
     settleBtn: "結清帳目",
     settling: "正在結清...",
-    settleUpAction: "結帳還款"
+    settleUpAction: "結帳還款",
+    aiExplainTitle: "AI 結算說明",
+    aiExplainButton: "取得 AI 說明",
+    aiExplaining: "AI 分析中...",
+    aiExplainSummaryTitle: "摘要",
+    aiExplainStepsTitle: "轉帳步驟",
+    aiExplainTipsTitle: "小提示",
+    aiExplainError: "AI 說明載入失敗，請稍後再試。",
+    aiExplainDisabled: "AI 說明目前未啟用。",
+    aiExplainUnavailable: "AI 服務暫時無法連線，請稍後再試。",
+    aiExplainTimeout: "AI 請求超時，請稍後再試。",
+    aiExplainForbidden: "您沒有查看此結算的權限。",
+    aiExplainRetry: "重試",
+    aiExplainNotice: "AI 僅提供說明，不會重新計算帳款。",
+    aiExplainEmpty: "目前無結算項目，帳目已結清。"
   },
   settings: {
     title: "設定",

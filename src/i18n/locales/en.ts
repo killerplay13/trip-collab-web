@@ -271,7 +271,21 @@ export default {
     ownerDesc: "You have full access to manage and finalize settlements for this trip. This dashboard will help you track who owes whom.",
     reviewBtn: "Review Settlements",
     memberView: "Member View",
-    memberDesc: "You can view your balances in the Expenses tab. Only the trip owner can manage settlement actions."
+    memberDesc: "You can view your balances in the Expenses tab. Only the trip owner can manage settlement actions.",
+    aiExplainTitle: "AI Settlement Explanation",
+    aiExplainButton: "Get AI Explanation",
+    aiExplaining: "Analyzing...",
+    aiExplainSummaryTitle: "Summary",
+    aiExplainStepsTitle: "Settlement Steps",
+    aiExplainTipsTitle: "Tips",
+    aiExplainError: "Failed to get AI explanation. Please try again.",
+    aiExplainDisabled: "AI explanation is currently disabled.",
+    aiExplainUnavailable: "AI service is temporarily unavailable. Please try again later.",
+    aiExplainTimeout: "AI request timed out. Please try again.",
+    aiExplainForbidden: "You do not have permission to view this settlement.",
+    aiExplainRetry: "Retry",
+    aiExplainNotice: "AI only explains the settlement. It does not recalculate any amounts.",
+    aiExplainEmpty: "No settlements needed. All expenses are squared up."
   },
   settings: {
     title: "Settings",

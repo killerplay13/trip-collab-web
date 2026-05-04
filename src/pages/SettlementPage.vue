@@ -4,8 +4,8 @@ import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useTripAccess } from "../composables/useTripAccess";
 import BottomSheet from "../components/BottomSheet.vue";
-import { getSettlements, createExpense } from "../api/expenses";
-import type { ExpenseSettlement } from "../api/expenses";
+import { getSettlements, createExpense, explainAiSettlement } from "../api/expenses";
+import type { AiSettlementExplainResponse, ExpenseSettlement } from "../api/expenses";
 import { formatMoney } from "../utils/formatters";
 
 const route = useRoute();
@@ -18,6 +18,9 @@ const errorMsg = ref("");
 const settlements = ref<ExpenseSettlement[]>([]);
 const sheetOpen = ref(false);
 const settling = ref(false);
+const aiExplain = ref<AiSettlementExplainResponse | null>(null);
+const aiExplainLoading = ref(false);
+const aiExplainError = ref("");
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -68,6 +71,37 @@ async function handleSettle(item: ExpenseSettlement) {
     errorMsg.value = e?.response?.data?.message ?? e?.message ?? "Failed to settle up";
   } finally {
     settling.value = false;
+  }
+}
+
+async function handleExplainAi() {
+  if (!tripId.value || aiExplainLoading.value) return;
+
+  aiExplainLoading.value = true;
+  aiExplainError.value = "";
+  aiExplain.value = null;
+
+  try {
+    aiExplain.value = await explainAiSettlement(tripId.value);
+  } catch (e: any) {
+    const status = e?.response?.status;
+
+    if (status === 503) {
+      aiExplainError.value = t("settlement.aiExplainDisabled");
+    } else if (status === 504) {
+      aiExplainError.value = t("settlement.aiExplainTimeout");
+    } else if (status === 502) {
+      aiExplainError.value = t("settlement.aiExplainUnavailable");
+    } else if (status === 403) {
+      aiExplainError.value = t("settlement.aiExplainForbidden");
+    } else {
+      aiExplainError.value =
+        e?.response?.data?.message ??
+        e?.message ??
+        t("settlement.aiExplainError");
+    }
+  } finally {
+    aiExplainLoading.value = false;
   }
 }
 </script>
@@ -179,6 +213,92 @@ async function handleSettle(item: ExpenseSettlement) {
           </button>
         </div>
       </div>
+
+      <section class="mt-5 border-t border-zinc-800 pt-5">
+        <div class="mb-3">
+          <p class="text-sm font-semibold text-zinc-100">
+            {{ t("settlement.aiExplainTitle") }}
+          </p>
+          <p class="mt-1 text-xs leading-relaxed text-zinc-500">
+            {{ t("settlement.aiExplainNotice") }}
+          </p>
+        </div>
+
+        <button
+          type="button"
+          class="w-full rounded-xl bg-indigo-500/15 px-4 py-3 text-sm font-semibold text-indigo-200 ring-1 ring-indigo-500/25 transition-all hover:bg-indigo-500/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+          :disabled="aiExplainLoading"
+          @click="handleExplainAi"
+        >
+          {{ aiExplainLoading ? t("settlement.aiExplaining") : t("settlement.aiExplainButton") }}
+        </button>
+
+        <div v-if="aiExplainLoading" class="mt-3 glass-card h-16 animate-pulse"></div>
+
+        <div v-if="aiExplainError" class="mt-3 rounded-xl bg-red-400/10 p-3 ring-1 ring-red-400/20">
+          <p class="text-sm font-medium text-red-400">{{ aiExplainError }}</p>
+          <button
+            type="button"
+            class="mt-2 text-xs font-semibold text-red-300 disabled:opacity-50"
+            :disabled="aiExplainLoading"
+            @click="handleExplainAi"
+          >
+            {{ t("settlement.aiExplainRetry") }}
+          </button>
+        </div>
+
+        <div v-if="aiExplain" class="mt-3 rounded-2xl bg-indigo-500/5 p-4 ring-1 ring-indigo-500/20">
+          <div v-if="aiExplain.summary">
+            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-300">
+              {{ t("settlement.aiExplainSummaryTitle") }}
+            </p>
+            <p class="mt-2 text-sm leading-relaxed text-zinc-200">
+              {{ aiExplain.summary }}
+            </p>
+          </div>
+
+          <div v-if="aiExplain.steps.length" class="mt-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-300">
+              {{ t("settlement.aiExplainStepsTitle") }}
+            </p>
+            <ol class="mt-2 space-y-2">
+              <li
+                v-for="(step, idx) in aiExplain.steps"
+                :key="`${idx}-${step}`"
+                class="flex gap-3 text-sm leading-relaxed text-zinc-200"
+              >
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-500/15 text-xs font-bold text-indigo-200 ring-1 ring-indigo-500/25">
+                  {{ idx + 1 }}
+                </span>
+                <span class="min-w-0 break-words">{{ step }}</span>
+              </li>
+            </ol>
+          </div>
+
+          <div v-if="aiExplain.tips.length" class="mt-4">
+            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-300">
+              {{ t("settlement.aiExplainTipsTitle") }}
+            </p>
+            <ul class="mt-2 space-y-2">
+              <li
+                v-for="(tip, idx) in aiExplain.tips"
+                :key="`${idx}-${tip}`"
+                class="flex gap-3 text-sm leading-relaxed text-zinc-300"
+              >
+                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-300"></span>
+                <span class="min-w-0 break-words">{{ tip }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <p
+            v-if="!aiExplain.summary && !aiExplain.steps.length && !aiExplain.tips.length"
+            class="text-sm leading-relaxed text-zinc-400"
+          >
+            {{ t("settlement.aiExplainEmpty") }}
+          </p>
+        </div>
+      </section>
     </BottomSheet>
   </div>
 </template>
