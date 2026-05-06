@@ -6,8 +6,8 @@ import BottomSheet from "../components/BottomSheet.vue";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
 import ExpenseCreateForm from "../components/ExpenseCreateForm.vue";
 import EmptyState from "../components/common/EmptyState.vue";
-import { createExpense, updateExpense, deleteExpense, getExpensesAll, getExpenseSummary, getSettlements, getExpenseDetail } from "../api/expenses";
-import type { ExpenseGroup, ExpenseMember, ExpenseSettlement, ExpenseSummary, ExpenseItem } from "../api/expenses";
+import { createExpense, updateExpense, deleteExpense, getExpensesAll, getExpenseSummary, getSettlements, getExpenseDetail, getAiExpenseInsight } from "../api/expenses";
+import type { ExpenseGroup, ExpenseMember, ExpenseSettlement, ExpenseSummary, ExpenseItem, AiExpenseInsightResponse } from "../api/expenses";
 import { getTripMembers } from "../api/tripMembers";
 import type { TripMember } from "../api/tripMembers";
 import { useTripAccess } from "../composables/useTripAccess";
@@ -20,7 +20,7 @@ const route = useRoute();
 const router = useRouter();
 const { isOwner, isMember } = useTripAccess();
 const tripId = computed(() => String(route.params.tripId || ""));
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const toast = useToast();
 
 const loading = ref(false);
@@ -35,6 +35,9 @@ const sheetOpen = ref(false);
 const defaultExpenseDate = ref(toYmd(new Date()));
 const editingExpense = ref<ExpenseItem | undefined>(undefined);
 const prefillExpenseTitle = ref("");
+const aiInsight = ref<AiExpenseInsightResponse | null>(null);
+const aiInsightLoading = ref(false);
+const aiInsightError = ref("");
 
 const confirmDialog = reactive({
   open: false,
@@ -355,6 +358,25 @@ async function handleDelete() {
   };
 }
 
+async function handleExpenseInsight() {
+  if (!tripId.value || aiInsightLoading.value) return;
+
+  aiInsightLoading.value = true;
+  aiInsightError.value = "";
+  aiInsight.value = null;
+
+  try {
+    aiInsight.value = await getAiExpenseInsight(tripId.value, {
+      language: locale.value,
+    });
+  } catch (e: any) {
+    aiInsightError.value =
+      e?.response?.data?.message ?? e?.message ?? "AI 花費分析暫時無法使用，請稍後再試。";
+  } finally {
+    aiInsightLoading.value = false;
+  }
+}
+
 onMounted(async () => {
   await load();
   await consumePrefillTitleQuery();
@@ -407,6 +429,97 @@ watch(
         </div>
       </div>
     </div>
+
+    <!-- AI Expense Insight -->
+    <section class="mt-6 animate-fade-in-up" style="animation-delay: 100ms;">
+      <div class="glass-card p-5 border border-amber-500/15">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <div class="text-xs font-semibold tracking-wider text-amber-300 uppercase">AI 花費分析</div>
+            <p class="mt-1 text-sm leading-relaxed text-zinc-400">
+              產生本趟旅行的 mock 花費洞察。
+            </p>
+          </div>
+          <button
+            type="button"
+            class="shrink-0 rounded-xl bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-200 ring-1 ring-amber-500/25 transition-all hover:bg-amber-500/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+            :disabled="aiInsightLoading"
+            @click="handleExpenseInsight"
+          >
+            {{ aiInsightLoading ? "分析中..." : "AI 花費分析" }}
+          </button>
+        </div>
+
+        <div v-if="aiInsightLoading" class="mt-4 h-20 rounded-xl bg-zinc-900/70 animate-pulse"></div>
+
+        <div v-if="aiInsightError" class="mt-4 rounded-xl bg-red-400/10 p-3 ring-1 ring-red-400/20">
+          <p class="text-sm font-medium text-red-400">{{ aiInsightError }}</p>
+          <button
+            type="button"
+            class="mt-2 text-xs font-semibold text-red-300 disabled:opacity-50"
+            :disabled="aiInsightLoading"
+            @click="handleExpenseInsight"
+          >
+            重試
+          </button>
+        </div>
+
+        <div v-if="aiInsight" class="mt-4 space-y-4">
+          <div v-if="aiInsight.fallback" class="rounded-xl bg-amber-400/10 p-3 ring-1 ring-amber-400/20">
+            <p class="text-xs font-semibold text-amber-200">
+              Fallback<span v-if="aiInsight.fallbackReason">: {{ aiInsight.fallbackReason }}</span>
+            </p>
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wide text-amber-300">Summary</p>
+            <p class="mt-2 text-sm leading-relaxed text-zinc-200">{{ aiInsight.summary }}</p>
+          </div>
+
+          <div v-if="aiInsight.highlights.length">
+            <p class="text-xs font-semibold uppercase tracking-wide text-amber-300">Highlights</p>
+            <ul class="mt-2 space-y-2">
+              <li
+                v-for="(item, idx) in aiInsight.highlights"
+                :key="`highlight-${idx}-${item}`"
+                class="flex gap-2 text-sm leading-relaxed text-zinc-300"
+              >
+                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-300"></span>
+                <span class="min-w-0 break-words">{{ item }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="aiInsight.warnings.length">
+            <p class="text-xs font-semibold uppercase tracking-wide text-amber-300">Warnings</p>
+            <ul class="mt-2 space-y-2">
+              <li
+                v-for="(item, idx) in aiInsight.warnings"
+                :key="`warning-${idx}-${item}`"
+                class="flex gap-2 text-sm leading-relaxed text-zinc-300"
+              >
+                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300"></span>
+                <span class="min-w-0 break-words">{{ item }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="aiInsight.suggestions.length">
+            <p class="text-xs font-semibold uppercase tracking-wide text-amber-300">Suggestions</p>
+            <ul class="mt-2 space-y-2">
+              <li
+                v-for="(item, idx) in aiInsight.suggestions"
+                :key="`suggestion-${idx}-${item}`"
+                class="flex gap-2 text-sm leading-relaxed text-zinc-300"
+              >
+                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300"></span>
+                <span class="min-w-0 break-words">{{ item }}</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Expenses List -->
     <div class="mt-8">

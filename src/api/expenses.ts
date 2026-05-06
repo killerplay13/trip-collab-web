@@ -72,6 +72,21 @@ export type AiSettlementExplainResponse = {
   tips: string[];
 };
 
+export type AiExpenseInsightPayload = {
+  language?: string;
+  budgetAmount?: number;
+  remainingDays?: number;
+};
+
+export type AiExpenseInsightResponse = {
+  summary: string;
+  highlights: string[];
+  warnings: string[];
+  suggestions: string[];
+  fallback: boolean;
+  fallbackReason?: string | null;
+};
+
 export type ExpenseMember = {
   memberId: string;
   name: string;
@@ -269,6 +284,26 @@ export async function explainAiSettlement(
     summary: data?.summary ?? "",
     steps: Array.isArray(data?.steps) ? data.steps : [],
     tips: Array.isArray(data?.tips) ? data.tips : [],
+  };
+}
+
+export async function getAiExpenseInsight(
+  tripId: string,
+  payload: AiExpenseInsightPayload = {},
+): Promise<AiExpenseInsightResponse> {
+  const { data } = await api.post(
+    `/api/trips/${tripId}/expenses/ai/insight`,
+    payload,
+    { timeout: 60000 },
+  );
+
+  return {
+    summary: data?.summary ?? "",
+    highlights: Array.isArray(data?.highlights) ? data.highlights : [],
+    warnings: Array.isArray(data?.warnings) ? data.warnings : [],
+    suggestions: Array.isArray(data?.suggestions) ? data.suggestions : [],
+    fallback: Boolean(data?.fallback),
+    fallbackReason: data?.fallbackReason ?? null,
   };
 }
 
