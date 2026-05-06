@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch, reactive } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { Calendar, DocumentAdd, Plus } from "@element-plus/icons-vue";
+import { DocumentAdd, Plus } from "@element-plus/icons-vue";
 import {
   bulkCreateItinerary,
   createItineraryItem,
@@ -22,14 +22,18 @@ import type { AiItineraryDraftItem, AiItineraryGenerateResponse, ItineraryItem }
 import BottomSheet from "../components/BottomSheet.vue";
 import ItineraryCreateForm from "../components/ItineraryCreateForm.vue";
 import ItineraryItemActions from "../components/ItineraryItemActions.vue";
+import ConfirmDialog from "../components/ConfirmDialog.vue";
+import EmptyState from "../components/common/EmptyState.vue";
 import { useTripAccess } from "../composables/useTripAccess";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { useI18n } from "vue-i18n";
+import { useToast } from "../composables/useToast";
 
 const route = useRoute();
 const router = useRouter();
 const { canEditData } = useTripAccess();
 const { t, locale } = useI18n();
+const toast = useToast();
 
 const tripId = computed(() => String(route.params.tripId || ""));
 
@@ -101,13 +105,24 @@ const aiLoading = ref(false);
 const aiError = ref("");
 const aiImporting = ref(false);
 const aiImportError = ref<string | null>(null);
-const aiImportSuccess = ref<string | null>(null);
+
 const aiNotes = ref("");
 const aiHelperOpen = ref(false);
 const aiSelectedInterests = ref<string[]>([]);
 const aiMustVisitText = ref("");
 const aiAvoidText = ref("");
 const aiMode = ref<"recommend_day" | "fill_gap" | "review_day">("recommend_day");
+
+const confirmDialog = reactive({
+  open: false,
+  title: "",
+  message: "",
+  confirmText: t('settings.save'),
+  cancelText: t('itinerary.cancel'),
+  danger: false,
+  loading: false,
+  onConfirm: async () => {},
+});
 
 const aiModeOptions = [
   {
@@ -263,9 +278,11 @@ async function handleGenerateAiDraft() {
       notes: aiNotes.value.trim() || null,
       language: String(locale.value || "zh-TW"),
     });
+    toast.success(t("itinerary.toast.aiGenerated"));
   } catch (e: any) {
-    aiError.value =
-      e?.response?.data?.message ?? e?.message ?? t("itinerary.aiErrorFallback");
+    const msg = e?.response?.data?.message ?? e?.message ?? t("itinerary.aiErrorFallback");
+    aiError.value = msg;
+    toast.error(msg);
   } finally {
     aiLoading.value = false;
   }
@@ -293,34 +310,46 @@ async function handleImportAiDraft() {
   const confirmMessage = hasAiQualityIssues.value
     ? t("itinerary.aiQualityReviewBeforeImportConfirm")
     : t("itinerary.aiImportQualityConfirm");
-  if (!window.confirm(confirmMessage)) return;
+  
+  confirmDialog.title = t("itinerary.aiImportDraft");
+  confirmDialog.message = confirmMessage;
+  confirmDialog.confirmText = t("itinerary.create");
+  confirmDialog.danger = false;
+  confirmDialog.open = true;
 
-  aiImporting.value = true;
-  aiImportError.value = null;
-  aiImportSuccess.value = null;
-  try {
-    await bulkCreateItinerary(tripId.value, {
-      dayDate: selectedDate.value,
-      items: targetItems.map((item) => ({
-        startTime: item.startTime ?? null,
-        endTime: item.endTime ?? null,
-        title: item.title,
-        locationName: item.locationName ?? null,
-        mapUrl: item.mapUrl ?? null,
-        note: item.note ?? null,
-      })),
-    });
-    await load();
-    aiDraft.value = null;
-    aiError.value = "";
+  confirmDialog.onConfirm = async () => {
+    if (confirmDialog.loading) return;
+    confirmDialog.loading = true;
+    aiImporting.value = true;
     aiImportError.value = null;
-    aiImportSuccess.value = t("itinerary.aiImportSuccess");
-  } catch (e: any) {
-    aiImportError.value =
-      e?.response?.data?.message ?? e?.message ?? t("itinerary.aiImportFailed");
-  } finally {
-    aiImporting.value = false;
-  }
+    aiImportSuccess.value = null;
+    try {
+      await bulkCreateItinerary(tripId.value, {
+        dayDate: selectedDate.value,
+        items: targetItems.map((item) => ({
+          startTime: item.startTime ?? null,
+          endTime: item.endTime ?? null,
+          title: item.title,
+          locationName: item.locationName ?? null,
+          mapUrl: item.mapUrl ?? null,
+          note: item.note ?? null,
+        })),
+      });
+      await load();
+      aiDraft.value = null;
+      aiError.value = "";
+      aiImportError.value = null;
+      toast.success(t("itinerary.toast.aiImported"));
+      confirmDialog.open = false;
+    } catch (e: any) {
+      const msg = e?.response?.data?.message ?? e?.message ?? t("itinerary.aiImportFailed");
+      aiImportError.value = msg;
+      toast.error(msg);
+    } finally {
+      aiImporting.value = false;
+      confirmDialog.loading = false;
+    }
+  };
 }
 
 async function load(options: { silent?: boolean } = {}) {
@@ -396,6 +425,7 @@ const sheetOpen = ref(false);
 const sheetMode = ref<"create" | "edit">("create");
 const editingItem = ref<ItineraryItem | null>(null);
 const deletingItem = ref<ItineraryItem | null>(null);
+const isDeleting = ref(false);
 const creating = ref(false);
 const createError = ref("");
 
@@ -437,10 +467,12 @@ async function handleCreate(payload: {
       dayDate: selectedDate.value,
     });
     sheetOpen.value = false;
+    toast.success(t("itinerary.toast.created"));
     await load(); // refresh list
   } catch (e: any) {
-    createError.value =
-      e?.response?.data?.message ?? e?.message ?? t('itinerary.createFailed');
+    const msg = e?.response?.data?.message ?? e?.message ?? t('itinerary.createFailed');
+    createError.value = msg;
+    toast.error(msg);
   } finally {
     creating.value = false;
   }
@@ -467,10 +499,12 @@ async function handleEdit(payload: {
       note: payload.note,
     });
     resetSheet();
+    toast.success(t("itinerary.toast.updated"));
     await load();
   } catch (e: any) {
-    createError.value =
-      e?.response?.data?.message ?? e?.message ?? t('itinerary.updateFailed');
+    const msg = e?.response?.data?.message ?? e?.message ?? t('itinerary.updateFailed');
+    createError.value = msg;
+    toast.error(msg);
   } finally {
     creating.value = false;
   }
@@ -509,17 +543,32 @@ async function handleSubmit(payload: {
 
 function askDelete(item: ItineraryItem) {
   deletingItem.value = item;
+  confirmDialog.title = t('itinerary.deleteConfirmTitle');
+  confirmDialog.message = `${t('itinerary.deleteConfirmDesc')} "${item.title || t('itinerary.untitled')}".`;
+  confirmDialog.confirmText = t('itinerary.deleteBtn');
+  confirmDialog.danger = true;
+  confirmDialog.open = true;
+  confirmDialog.onConfirm = confirmDelete;
 }
 
 async function confirmDelete() {
+  if (confirmDialog.loading) return;
   if (!tripId.value || !deletingItem.value) return;
+  confirmDialog.loading = true;
+  isDeleting.value = true;
   try {
     await deleteItineraryItem(tripId.value, deletingItem.value.id);
     deletingItem.value = null;
+    confirmDialog.open = false;
+    toast.success(t("itinerary.toast.deleted"));
     await load();
   } catch (e: any) {
-    createError.value =
-      e?.response?.data?.message ?? e?.message ?? t('itinerary.deleteFailed');
+    const msg = e?.response?.data?.message ?? e?.message ?? t('itinerary.deleteFailed');
+    createError.value = msg;
+    toast.error(msg);
+  } finally {
+    isDeleting.value = false;
+    confirmDialog.loading = false;
   }
 }
 
@@ -536,6 +585,7 @@ function cancelMove() {
 }
 
 async function confirmMove() {
+  if (moving.value) return;
   if (!tripId.value || !movingItem.value) return;
   const toDate = moveToDate.value.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
@@ -551,12 +601,12 @@ async function confirmMove() {
   try {
     await moveItineraryItem(tripId.value, movingItem.value.id, toDate);
     items.value = await getItineraryByDate(tripId.value, selectedDate.value);
+    toast.success(t("itinerary.toast.moved"));
     cancelMove();
   } catch (e: any) {
-    moveError.value =
-      e?.response?.data?.message ??
-      e?.message ??
-      t('itinerary.moveFailed');
+    const msg = e?.response?.data?.message ?? e?.message ?? t('itinerary.moveFailed');
+    moveError.value = msg;
+    toast.error(msg);
   } finally {
     moving.value = false;
   }
@@ -580,6 +630,7 @@ function closePaste() {
 }
 
 async function runPreview() {
+  if (pasteLoading.value) return;
   if (!tripId.value) return;
   const text = pasteText.value.trim();
   if (!text) {
@@ -604,6 +655,7 @@ async function runPreview() {
 }
 
 async function confirmPasteCreate() {
+  if (pasteLoading.value) return;
   if (!tripId.value || !pastePreview.value) return;
   if (pastePreview.value.errors.length > 0) return;
   const dayDate = pasteDayDate.value.trim();
@@ -616,12 +668,12 @@ async function confirmPasteCreate() {
   try {
     await pasteCreateItinerary(tripId.value, dayDate, pasteText.value);
     items.value = await getItineraryByDate(tripId.value, selectedDate.value);
+    toast.success(t("itinerary.toast.pasted"));
     closePaste();
   } catch (e: any) {
-    pasteError.value =
-      e?.response?.data?.message ??
-      e?.message ??
-      t('itinerary.pasteFailed');
+    const msg = e?.response?.data?.message ?? e?.message ?? t('itinerary.pasteFailed');
+    pasteError.value = msg;
+    toast.error(msg);
   } finally {
     pasteLoading.value = false;
   }
@@ -927,22 +979,7 @@ watch(searchQuery, (value) => {
       </div>
     </div>
 
-    <div
-      v-if="!searchMode && aiImportSuccess"
-      class="mt-3 flex items-center justify-between gap-3 rounded-2xl bg-zinc-950/75 px-3 py-2.5 text-sm text-emerald-200 ring-1 ring-emerald-500/25 shadow-lg shadow-emerald-950/10"
-    >
-      <div class="flex min-w-0 items-center gap-2">
-        <span class="h-2 w-2 shrink-0 rounded-full bg-emerald-400"></span>
-        <span class="min-w-0">{{ aiImportSuccess }}</span>
-      </div>
-      <button
-        type="button"
-        class="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-zinc-400 transition-colors hover:bg-zinc-900 hover:text-zinc-200"
-        @click="aiImportSuccess = null"
-      >
-        {{ $t('itinerary.aiImportSuccessDismiss') }}
-      </button>
-    </div>
+
 
     <!-- AI Draft Result -->
     <section v-if="!searchMode && aiDraft" class="mt-4 rounded-3xl bg-zinc-950/70 p-4 ring-1 ring-sky-500/25 shadow-xl shadow-sky-950/20 animate-fade-in-up">
@@ -1168,33 +1205,15 @@ watch(searchQuery, (value) => {
         v-else-if="items.length === 0"
         class="mt-10 animate-fade-in-up"
       >
-        <div class="flex flex-col items-center text-center p-8 glass-card border-dashed border-2 border-zinc-800 bg-transparent shadow-none">
-          <div class="mb-5 w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center ring-4 ring-zinc-950 shadow-inner">
-            <el-icon size="28" class="text-zinc-500">
-              <Calendar />
-            </el-icon>
-          </div>
-          <div class="text-lg font-bold text-zinc-200">
-            {{ $t('itinerary.noEvents') }}
-          </div>
-          <div class="mt-2 text-sm text-zinc-500 leading-relaxed max-w-[250px]">
-            {{ $t('itinerary.noEventsDesc') }}
-          </div>
-          <div v-if="canEditData" class="mt-6 flex gap-3 w-full justify-center">
-            <button
-              class="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 active:scale-95"
-              @click="openCreate"
-            >
-              <el-icon><Plus /></el-icon> Add
-            </button>
-            <button
-              class="flex items-center gap-2 rounded-xl bg-zinc-800 px-5 py-2.5 text-sm font-semibold text-zinc-200 ring-1 ring-zinc-700 transition-all hover:bg-zinc-700 active:scale-95"
-              @click="openPaste"
-            >
-              <el-icon><DocumentAdd /></el-icon> Paste
-            </button>
-          </div>
-        </div>
+        <EmptyState
+          icon="Calendar"
+          :title="$t('itinerary.empty.title')"
+          :description="$t('itinerary.empty.description')"
+          :primary-action-text="canEditData ? $t('itinerary.empty.action') : undefined"
+          :secondary-action-text="canEditData ? $t('itinerary.paste') : undefined"
+          @primary-action="openCreate"
+          @secondary-action="openPaste"
+        />
       </div>
 
       <div v-else class="space-y-4">
@@ -1430,37 +1449,16 @@ watch(searchQuery, (value) => {
         </div>
       </BottomSheet>
 
-      <div
-        v-if="deletingItem"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4"
-      >
-        <div
-          class="w-full max-w-sm rounded-2xl bg-zinc-950 p-4 ring-1 ring-zinc-800"
-        >
-          <h2 class="text-base font-semibold text-zinc-100">{{ $t('itinerary.deleteConfirmTitle') }}</h2>
-          <p class="mt-2 text-sm text-zinc-400">
-            {{ $t('itinerary.deleteConfirmDesc') }}
-            <span class="text-zinc-100">{{
-              deletingItem.title || $t('itinerary.untitled')
-            }}</span
-            >.
-          </p>
-          <div class="mt-4 flex gap-2">
-            <button
-              class="flex-1 rounded-xl bg-zinc-900 px-4 py-2 text-sm font-medium ring-1 ring-zinc-800"
-              @click="deletingItem = null"
-            >
-              {{ $t('itinerary.cancel') }}
-            </button>
-            <button
-              class="flex-1 rounded-xl bg-red-500 px-4 py-2 text-sm font-medium text-white"
-              @click="confirmDelete"
-            >
-              {{ $t('itinerary.deleteBtn') }}
-            </button>
-          </div>
-        </div>
-      </div>
+    <ConfirmDialog
+      v-model="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :confirm-text="confirmDialog.confirmText"
+      :cancel-text="confirmDialog.cancelText"
+      :danger="confirmDialog.danger"
+      :loading="confirmDialog.loading"
+      @confirm="confirmDialog.onConfirm"
+    />
 
       <div
         v-if="movingItem"

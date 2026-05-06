@@ -3,15 +3,17 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
 import BottomSheet from "../components/BottomSheet.vue";
+import EmptyState from "../components/common/EmptyState.vue";
 import { getTripMembers, updateTripMember, type TripMember } from "../api/tripMembers";
 import { getTrip, updateTrip } from "../api/trips";
 import { useTripAccess } from "../composables/useTripAccess";
 import { useSessionStore } from "../stores/session";
+import { useToast } from "../composables/useToast";
 
-const route = useRoute();
 const session = useSessionStore();
 const { isOwner } = useTripAccess();
 const { t, locale } = useI18n();
+const toast = useToast();
 
 const tripId = computed(() => String(route.params.tripId || ""));
 const tripTitle = ref("");
@@ -22,6 +24,7 @@ const membersLoading = ref(false);
 const membersErrorMsg = ref("");
 const copyFeedback = ref("");
 const copyErrorMsg = ref("");
+const isCopying = ref(false);
 const settingsOpen = ref(false);
 
 const editTripTitle = ref("");
@@ -40,6 +43,7 @@ function openSettings() {
 }
 
 async function handleSaveNickname() {
+  if (savingNickname.value) return;
   const access = session.getTripAccess(tripId.value);
   const me = members.value.find(m => m.nickname === access?.nickname);
   if (!tripId.value || !me?.id) return;
@@ -52,22 +56,29 @@ async function handleSaveNickname() {
       session.setTripAccess(tripId.value, { ...access, nickname: editNickname.value });
     }
     await loadMembers();
+    toast.success(t('trip.toast.nicknameSaved'));
   } catch (e: any) {
-    settingsErrorMsg.value = e?.response?.data?.message ?? e?.message ?? "Failed to update nickname";
+    const msg = e?.response?.data?.message ?? e?.message ?? "Failed to update nickname";
+    settingsErrorMsg.value = msg;
+    toast.error(msg);
   } finally {
     savingNickname.value = false;
   }
 }
 
 async function handleSaveTrip() {
+  if (savingTrip.value) return;
   if (!tripId.value) return;
   savingTrip.value = true;
   settingsErrorMsg.value = "";
   try {
     const trip = await updateTrip(tripId.value, { title: editTripTitle.value });
     tripTitle.value = trip.title;
+    toast.success(t('trip.toast.updated'));
   } catch (e: any) {
-    settingsErrorMsg.value = e?.response?.data?.message ?? e?.message ?? "Failed to update trip";
+    const msg = e?.response?.data?.message ?? e?.message ?? "Failed to update trip";
+    settingsErrorMsg.value = msg;
+    toast.error(msg);
   } finally {
     savingTrip.value = false;
   }
@@ -126,6 +137,8 @@ async function loadMembers() {
 }
 
 async function copyInviteLink() {
+  if (isCopying.value) return;
+  isCopying.value = true;
   copyFeedback.value = "";
   copyErrorMsg.value = "";
 
@@ -143,9 +156,13 @@ async function copyInviteLink() {
   try {
     const nextInviteLink = `${window.location.origin}/t/${tripId.value}/join?token=${encodeURIComponent(tripToken)}`;
     await navigator.clipboard.writeText(nextInviteLink);
-    copyFeedback.value = t('home.inviteCopied');
+    toast.success(t('trip.toast.inviteCopied'));
   } catch (e: any) {
-    copyErrorMsg.value = e?.message ?? t('home.copyFailed');
+    const msg = e?.message ?? t('home.copyFailed');
+    copyErrorMsg.value = msg;
+    toast.error(msg);
+  } finally {
+    isCopying.value = false;
   }
 }
 
@@ -190,10 +207,11 @@ onMounted(() => {
         </div>
         <button
           v-if="canCopyInviteLink"
-          class="shrink-0 flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition-all active:scale-95 hover:shadow-blue-500/40"
+          class="shrink-0 flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-blue-500/25 transition-all active:scale-95 hover:shadow-blue-500/40 disabled:opacity-70 disabled:hover:scale-100"
+          :disabled="isCopying"
           @click="copyInviteLink"
         >
-          <span>{{ $t('home.copyLink') }}</span>
+          <span>{{ isCopying ? '...' : $t('home.copyLink') }}</span>
         </button>
       </div>
 
@@ -240,8 +258,14 @@ onMounted(() => {
         </div>
       </div>
 
-      <div v-else-if="!membersErrorMsg" class="py-6 text-center text-sm text-zinc-500">
-        {{ $t('home.noMembers') }}
+      <div v-else-if="!membersErrorMsg">
+        <EmptyState
+          icon="User"
+          :title="$t('home.membersEmpty.title')"
+          :description="$t('home.membersEmpty.description')"
+          :primary-action-text="canCopyInviteLink ? $t('home.membersEmpty.action') : undefined"
+          @primary-action="copyInviteLink"
+        />
       </div>
 
       <div v-if="membersErrorMsg" class="mt-3">

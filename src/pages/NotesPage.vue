@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, reactive } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
+import { useToast } from "../composables/useToast";
 import { getNotes, createNote, updateNote, deleteNote, type Note } from "../api/notes";
 import BottomSheet from "../components/BottomSheet.vue";
+import ConfirmDialog from "../components/ConfirmDialog.vue";
+import EmptyState from "../components/common/EmptyState.vue";
 import NoteForm from "../components/NoteForm.vue";
 
 const route = useRoute();
 const { t } = useI18n();
+const toast = useToast();
 const tripId = computed(() => String(route.params.tripId || ""));
 
 const notes = ref<Note[]>([]);
@@ -17,6 +21,18 @@ const errorMsg = ref("");
 const sheetOpen = ref(false);
 const editingNote = ref<Note | null>(null);
 const formLoading = ref(false);
+const deletingIds = ref(new Set<string>());
+
+const confirmDialog = reactive({
+  open: false,
+  title: "",
+  message: "",
+  confirmText: t('settings.save'),
+  cancelText: t('itinerary.cancel'),
+  danger: false,
+  loading: false,
+  onConfirm: async () => {},
+});
 
 async function loadNotes() {
   if (!tripId.value) return;
@@ -42,6 +58,7 @@ function openEdit(note: Note) {
 }
 
 async function handleSubmit(payload: { title: string; content: string }) {
+  if (formLoading.value) return;
   if (!tripId.value) return;
   formLoading.value = true;
   try {
@@ -51,22 +68,44 @@ async function handleSubmit(payload: { title: string; content: string }) {
       await createNote(tripId.value, payload);
     }
     await loadNotes();
+    toast.success(editingNote.value ? t("notes.toast.updated") : t("notes.toast.created"));
     sheetOpen.value = false;
   } catch (e: any) {
-    alert(e?.response?.data?.message ?? e?.message ?? "Failed to save note");
+    const msg = e?.response?.data?.message ?? e?.message ?? "Failed to save note";
+    toast.error(msg);
   } finally {
     formLoading.value = false;
   }
 }
 
 async function handleDelete(note: Note) {
-  if (!confirm(t('itinerary.confirmDelete'))) return;
-  try {
-    await deleteNote(tripId.value, note.id);
-    await loadNotes();
-  } catch (e: any) {
-    alert(e?.response?.data?.message ?? e?.message ?? "Failed to delete note");
-  }
+  if (deletingIds.value.has(note.id)) return;
+  
+  confirmDialog.title = t('notes.deleteNote');
+  confirmDialog.message = t('notes.deleteConfirm', { title: note.title || t('itinerary.untitled') });
+  confirmDialog.confirmText = t('itinerary.deleteBtn');
+  confirmDialog.danger = true;
+  confirmDialog.open = true;
+
+  confirmDialog.onConfirm = async () => {
+    if (confirmDialog.loading) return;
+    confirmDialog.loading = true;
+    deletingIds.value = new Set(deletingIds.value).add(note.id);
+    try {
+      await deleteNote(tripId.value, note.id);
+      confirmDialog.open = false;
+      toast.success(t("notes.toast.deleted"));
+      await loadNotes();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message ?? e?.message ?? "Failed to delete note";
+      toast.error(msg);
+    } finally {
+      confirmDialog.loading = false;
+      const next = new Set(deletingIds.value);
+      next.delete(note.id);
+      deletingIds.value = next;
+    }
+  };
 }
 
 function formatDate(dateStr: string) {
@@ -106,16 +145,14 @@ onMounted(loadNotes);
         <div v-for="i in 3" :key="i" class="glass-card h-32 animate-pulse"></div>
       </div>
 
-      <div v-else-if="notes.length === 0" class="flex flex-col items-center text-center p-8 glass-card border-dashed border-2 border-zinc-800 bg-transparent shadow-none">
-        <div class="mb-5 w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center ring-4 ring-zinc-950 shadow-inner">
-          <svg class="w-8 h-8 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 00-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-        </div>
-        <div class="text-lg font-bold text-zinc-200">
-          {{ $t('notes.noNotes') }}
-        </div>
-        <div class="mt-2 text-sm text-zinc-500 leading-relaxed max-w-[250px]">
-          {{ $t('notes.noNotesDesc') }}
-        </div>
+      <div v-else-if="notes.length === 0">
+        <EmptyState
+          icon="Document"
+          :title="$t('notes.empty.title')"
+          :description="$t('notes.empty.description')"
+          :primary-action-text="$t('notes.empty.action')"
+          @primary-action="openCreate"
+        />
       </div>
 
       <div
@@ -133,10 +170,12 @@ onMounted(loadNotes);
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
             </button>
             <button 
-              class="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+              class="p-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+              :disabled="deletingIds.has(note.id)"
               @click="handleDelete(note)"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              <span v-if="deletingIds.has(note.id)">...</span>
+              <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
             </button>
           </div>
         </div>
@@ -161,5 +200,16 @@ onMounted(loadNotes);
         @submit="handleSubmit"
       />
     </BottomSheet>
+
+    <ConfirmDialog
+      v-model="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :confirm-text="confirmDialog.confirmText"
+      :cancel-text="confirmDialog.cancelText"
+      :danger="confirmDialog.danger"
+      :loading="confirmDialog.loading"
+      @confirm="confirmDialog.onConfirm"
+    />
   </div>
 </template>

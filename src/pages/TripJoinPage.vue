@@ -3,6 +3,7 @@ import { computed, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { joinTrip } from "../api/trips";
 import { useSessionStore } from "../stores/session";
+import { useToast } from "../composables/useToast";
 
 import { useI18n } from "vue-i18n";
 
@@ -10,6 +11,7 @@ const route = useRoute();
 const router = useRouter();
 const session = useSessionStore();
 const { t } = useI18n();
+const toast = useToast();
 
 const tripId = computed(() => String(route.params.tripId || ""));
 const existingAccess = computed(() => {
@@ -23,7 +25,7 @@ const inviteToken = computed(() => {
   return session.getTripToken(tripId.value) ?? "";
 });
 const nickname = ref("");
-const loading = ref(false);
+const isJoining = ref(false);
 const errorMsg = ref("");
 
 const defaultRedirect = computed(() => `/t/${tripId.value}/itinerary`);
@@ -41,6 +43,7 @@ if (shouldAutoRedirect.value) {
 }
 
 async function handleJoin() {
+  if (isJoining.value) return;
   errorMsg.value = "";
 
   const trimmedNickname = nickname.value.trim();
@@ -53,7 +56,7 @@ async function handleJoin() {
     return;
   }
 
-  loading.value = true;
+  isJoining.value = true;
   try {
     const access = await joinTrip(tripId.value, inviteToken.value, {
       nickname: trimmedNickname,
@@ -68,11 +71,14 @@ async function handleJoin() {
       tripToken: inviteToken.value || null,
     });
 
+    toast.success(t('common.toast.success'));
     await router.replace(redirectTarget.value);
   } catch (e: any) {
-    errorMsg.value = e?.response?.data?.message ?? e?.message ?? t('join.errorJoinFailed');
+    const msg = e?.response?.data?.message ?? e?.message ?? t('join.errorJoinFailed');
+    errorMsg.value = msg;
+    toast.error(msg);
   } finally {
-    loading.value = false;
+    isJoining.value = false;
   }
 }
 </script>
@@ -138,14 +144,14 @@ async function handleJoin() {
 
             <!-- Submit Button -->
             <button
-              :disabled="loading || !inviteToken"
+              :disabled="isJoining || !inviteToken"
               @click="handleJoin"
               class="group relative mt-2 w-full overflow-hidden rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3.5 text-base font-bold text-white shadow-lg shadow-emerald-500/20 transition-all hover:-translate-y-0.5 hover:shadow-emerald-500/40 active:translate-y-0 active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0"
             >
-              <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-emerald-600">
+              <div v-if="isJoining" class="absolute inset-0 flex items-center justify-center bg-emerald-600">
                 <svg class="h-5 w-5 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
               </div>
-              <span :class="{ 'opacity-0': loading }">{{ $t('join.submit') }}</span>
+              <span :class="{ 'opacity-0': isJoining }">{{ $t('join.submit') }}</span>
             </button>
           </div>
         </template>

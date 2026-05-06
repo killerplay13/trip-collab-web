@@ -3,12 +3,14 @@ import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { createTrip } from "../api/trips";
 import { useSessionStore } from "../stores/session";
+import { useToast } from "../composables/useToast";
 
 import { useI18n } from "vue-i18n";
 
 const router = useRouter();
 const session = useSessionStore();
 const { t } = useI18n();
+const toast = useToast();
 
 const title = ref("Tottori & Okayama");
 const timezone = ref("Asia/Taipei");
@@ -26,12 +28,13 @@ const availableCurrencies = computed(() => [
   { code: "KRW", label: t('currencies.KRW') },
 ]);
 
-const loading = ref(false);
+const isCreating = ref(false);
 const errorMsg = ref("");
 
 async function handleCreate() {
+  if (isCreating.value) return;
   errorMsg.value = "";
-  loading.value = true;
+  isCreating.value = true;
   try {
     const trip = await createTrip({
       title: title.value,
@@ -58,11 +61,14 @@ async function handleCreate() {
       tripToken: trip.inviteToken,
     });
     
+    toast.success(t('trip.toast.created'));
     await router.push(`/t/${trip.id}`);
   } catch (e: any) {
-    errorMsg.value = e?.message ?? t('create.error');
+    const msg = e?.message ?? t('create.error');
+    errorMsg.value = msg;
+    toast.error(t('common.toast.operationFailed'), { description: msg });
   } finally {
-    loading.value = false;
+    isCreating.value = false;
   }
 }
 </script>
@@ -175,14 +181,14 @@ async function handleCreate() {
 
         <!-- Submit Button -->
         <button
-          :disabled="loading"
+          :disabled="isCreating"
           @click="handleCreate"
           class="group relative mt-2 w-full overflow-hidden rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3.5 text-base font-bold text-white shadow-lg shadow-emerald-500/20 transition-all hover:-translate-y-0.5 hover:shadow-emerald-500/40 active:translate-y-0 active:scale-[0.98] disabled:opacity-70 disabled:hover:translate-y-0"
         >
-          <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-emerald-600">
+          <div v-if="isCreating" class="absolute inset-0 flex items-center justify-center bg-emerald-600">
             <svg class="h-5 w-5 animate-spin text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
           </div>
-          <span :class="{ 'opacity-0': loading }">{{ $t('create.submit') }}</span>
+          <span :class="{ 'opacity-0': isCreating }">{{ $t('create.submit') }}</span>
         </button>
       </div>
     </div>

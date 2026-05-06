@@ -12,8 +12,10 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     BottomSheet: typeof import('./src/components/BottomSheet.vue')['default']
+    ConfirmDialog: typeof import('./src/components/ConfirmDialog.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElIcon: typeof import('element-plus/es')['ElIcon']
+    EmptyState: typeof import('./src/components/common/EmptyState.vue')['default']
     ExpenseCreateForm: typeof import('./src/components/ExpenseCreateForm.vue')['default']
     HelloWorld: typeof import('./src/components/HelloWorld.vue')['default']
     ItineraryCreateForm: typeof import('./src/components/ItineraryCreateForm.vue')['default']
@@ -21,5 +23,6 @@ declare module 'vue' {
     NoteForm: typeof import('./src/components/NoteForm.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    ToastContainer: typeof import('./src/components/common/ToastContainer.vue')['default']
   }
 }

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { ref, onMounted, watch, reactive } from "vue";
 import { useRoute } from "vue-router";
 import { useI18n } from "vue-i18n";
+import { useToast } from "../composables/useToast";
 import {
   getWalletSummary,
   getWalletTransactions,
@@ -13,11 +14,14 @@ import {
 import type { WalletSummaryResponse, WalletTransactionListResponse } from "../api/wallet";
 import { Edit, Minus, Plus, Switch } from "@element-plus/icons-vue";
 import BottomSheet from "../components/BottomSheet.vue";
+import ConfirmDialog from "../components/ConfirmDialog.vue";
+import EmptyState from "../components/common/EmptyState.vue";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { formatAmount } from "../utils/formatters";
 
 const route = useRoute();
 const { t } = useI18n();
+const toast = useToast();
 const tripId = ref(String(route.params.tripId || ""));
 
 const summary = ref<WalletSummaryResponse | null>(null);
@@ -56,6 +60,17 @@ const adjustmentFxRate = ref("1");
 const adjustmentNote = ref("");
 const adjusting = ref(false);
 
+const confirmDialog = reactive({
+  open: false,
+  title: "",
+  message: "",
+  confirmText: t('settings.save'),
+  cancelText: t('itinerary.cancel'),
+  danger: false,
+  loading: false,
+  onConfirm: async () => {},
+});
+
 function getApiError(e: any, fallback: string) {
   return e?.response?.data?.message ?? e?.message ?? fallback;
 }
@@ -79,102 +94,175 @@ async function load(options: { silent?: boolean } = {}) {
 const pullToRefresh = usePullToRefresh(() => load({ silent: true }));
 
 async function handleDeposit() {
+  if (depositing.value) return;
   if (!tripId.value) return;
-  errorMsg.value = "";
-  depositing.value = true;
-  try {
-    await createWalletDeposit(tripId.value, {
-      originalAmount: Number(depositAmount.value),
-      originalCurrency: depositCurrency.value,
-      fxRate: Number(depositFxRate.value),
-      note: depositNote.value,
-    });
-    depositSheetOpen.value = false;
-    depositAmount.value = "";
-    depositNote.value = "";
-    await load();
-  } catch (e: any) {
-    console.error(e);
-    errorMsg.value = getApiError(e, t("wallet.depositFailed"));
-  } finally {
-    depositing.value = false;
-  }
+  
+  confirmDialog.title = t('wallet.depositTitle');
+  confirmDialog.message = t('wallet.depositConfirmDesc', { amount: formatAmount(depositAmount.value), currency: depositCurrency.value });
+  confirmDialog.confirmText = t('wallet.confirmDeposit');
+  confirmDialog.danger = false;
+  confirmDialog.open = true;
+
+  confirmDialog.onConfirm = async () => {
+    if (confirmDialog.loading) return;
+    confirmDialog.loading = true;
+    errorMsg.value = "";
+    depositing.value = true;
+    try {
+      await createWalletDeposit(tripId.value, {
+        originalAmount: Number(depositAmount.value),
+        originalCurrency: depositCurrency.value,
+        fxRate: Number(depositFxRate.value),
+        note: depositNote.value,
+      });
+      depositSheetOpen.value = false;
+      depositAmount.value = "";
+      depositNote.value = "";
+      confirmDialog.open = false;
+      toast.success(t("wallet.toast.depositSuccess"));
+      await load();
+    } catch (e: any) {
+      console.error(e);
+      const msg = getApiError(e, t("wallet.depositFailed"));
+      errorMsg.value = msg;
+      toast.error(msg);
+    } finally {
+      depositing.value = false;
+      confirmDialog.loading = false;
+    }
+  };
 }
 
 async function handleExchange() {
+  if (exchanging.value) return;
   if (!tripId.value) return;
-  errorMsg.value = "";
-  exchanging.value = true;
-  try {
-    await createWalletExchange(tripId.value, {
-      from: {
-        currency: exFromCurrency.value,
-        amount: Number(exFromAmount.value),
-        fxRateToBase: Number(exFromRate.value),
-      },
-      to: {
-        currency: exToCurrency.value,
-        amount: Number(exToAmount.value),
-        fxRateToBase: Number(exToRate.value),
-      },
-    });
-    exchangeSheetOpen.value = false;
-    exFromAmount.value = "";
-    exToAmount.value = "";
-    await load();
-  } catch (e: any) {
-    console.error(e);
-    errorMsg.value = getApiError(e, t("wallet.exchangeFailed"));
-  } finally {
-    exchanging.value = false;
-  }
+  
+  confirmDialog.title = t('wallet.exchangeTitle');
+  confirmDialog.message = t('wallet.exchangeConfirmDesc', {
+    fromAmount: formatAmount(exFromAmount.value),
+    fromCurrency: exFromCurrency.value,
+    toAmount: formatAmount(exToAmount.value),
+    toCurrency: exToCurrency.value
+  });
+  confirmDialog.confirmText = t('wallet.confirmExchange');
+  confirmDialog.danger = false;
+  confirmDialog.open = true;
+
+  confirmDialog.onConfirm = async () => {
+    if (confirmDialog.loading) return;
+    confirmDialog.loading = true;
+    errorMsg.value = "";
+    exchanging.value = true;
+    try {
+      await createWalletExchange(tripId.value, {
+        from: {
+          currency: exFromCurrency.value,
+          amount: Number(exFromAmount.value),
+          fxRateToBase: Number(exFromRate.value),
+        },
+        to: {
+          currency: exToCurrency.value,
+          amount: Number(exToAmount.value),
+          fxRateToBase: Number(exToRate.value),
+        },
+      });
+      exchangeSheetOpen.value = false;
+      exFromAmount.value = "";
+      exToAmount.value = "";
+      confirmDialog.open = false;
+      toast.success(t("wallet.toast.exchangeSuccess"));
+      await load();
+    } catch (e: any) {
+      console.error(e);
+      const msg = getApiError(e, t("wallet.exchangeFailed"));
+      errorMsg.value = msg;
+      toast.error(msg);
+    } finally {
+      exchanging.value = false;
+      confirmDialog.loading = false;
+    }
+  };
 }
 
 async function handleWithdrawal() {
+  if (withdrawing.value) return;
   if (!tripId.value) return;
-  errorMsg.value = "";
-  withdrawing.value = true;
-  try {
-    await createWalletWithdrawal(tripId.value, {
-      originalAmount: Number(withdrawalAmount.value),
-      originalCurrency: withdrawalCurrency.value,
-      fxRate: Number(withdrawalFxRate.value),
-      note: withdrawalNote.value,
-    });
-    withdrawalSheetOpen.value = false;
-    withdrawalAmount.value = "";
-    withdrawalNote.value = "";
-    await load();
-  } catch (e: any) {
-    console.error(e);
-    errorMsg.value = getApiError(e, t("wallet.withdrawalFailed"));
-  } finally {
-    withdrawing.value = false;
-  }
+  
+  confirmDialog.title = t('wallet.withdrawTitle');
+  confirmDialog.message = t('wallet.withdrawConfirmDesc', { amount: formatAmount(withdrawalAmount.value), currency: withdrawalCurrency.value });
+  confirmDialog.confirmText = t('wallet.confirmWithdraw');
+  confirmDialog.danger = true;
+  confirmDialog.open = true;
+
+  confirmDialog.onConfirm = async () => {
+    if (confirmDialog.loading) return;
+    confirmDialog.loading = true;
+    errorMsg.value = "";
+    withdrawing.value = true;
+    try {
+      await createWalletWithdrawal(tripId.value, {
+        originalAmount: Number(withdrawalAmount.value),
+        originalCurrency: withdrawalCurrency.value,
+        fxRate: Number(withdrawalFxRate.value),
+        note: withdrawalNote.value,
+      });
+      withdrawalSheetOpen.value = false;
+      withdrawalAmount.value = "";
+      withdrawalNote.value = "";
+      confirmDialog.open = false;
+      toast.success(t("wallet.toast.withdrawalSuccess"));
+      await load();
+    } catch (e: any) {
+      console.error(e);
+      const msg = getApiError(e, t("wallet.withdrawalFailed"));
+      errorMsg.value = msg;
+      toast.error(msg);
+    } finally {
+      withdrawing.value = false;
+      confirmDialog.loading = false;
+    }
+  };
 }
 
 async function handleAdjustment() {
+  if (adjusting.value) return;
   if (!tripId.value) return;
-  errorMsg.value = "";
-  adjusting.value = true;
-  try {
-    await createWalletAdjustment(tripId.value, {
-      direction: adjustmentDirection.value,
-      originalAmount: Number(adjustmentAmount.value),
-      originalCurrency: adjustmentCurrency.value,
-      fxRate: Number(adjustmentFxRate.value),
-      note: adjustmentNote.value,
-    });
-    adjustmentSheetOpen.value = false;
-    adjustmentAmount.value = "";
-    adjustmentNote.value = "";
-    await load();
-  } catch (e: any) {
-    console.error(e);
-    errorMsg.value = getApiError(e, t("wallet.adjustmentFailed"));
-  } finally {
-    adjusting.value = false;
-  }
+  
+  confirmDialog.title = t('wallet.adjustTitle');
+  confirmDialog.message = t('wallet.adjustConfirmDesc', { amount: formatAmount(adjustmentAmount.value), currency: adjustmentCurrency.value });
+  confirmDialog.confirmText = t('wallet.confirmAdjust');
+  confirmDialog.danger = adjustmentDirection.value === "OUT";
+  confirmDialog.open = true;
+
+  confirmDialog.onConfirm = async () => {
+    if (confirmDialog.loading) return;
+    confirmDialog.loading = true;
+    errorMsg.value = "";
+    adjusting.value = true;
+    try {
+      await createWalletAdjustment(tripId.value, {
+        direction: adjustmentDirection.value,
+        originalAmount: Number(adjustmentAmount.value),
+        originalCurrency: adjustmentCurrency.value,
+        fxRate: Number(adjustmentFxRate.value),
+        note: adjustmentNote.value,
+      });
+      adjustmentSheetOpen.value = false;
+      adjustmentAmount.value = "";
+      adjustmentNote.value = "";
+      confirmDialog.open = false;
+      toast.success(t("wallet.toast.adjustmentSuccess"));
+      await load();
+    } catch (e: any) {
+      console.error(e);
+      const msg = getApiError(e, t("wallet.adjustmentFailed"));
+      errorMsg.value = msg;
+      toast.error(msg);
+    } finally {
+      adjusting.value = false;
+      confirmDialog.loading = false;
+    }
+  };
 }
 
 watch(summary, (val) => {
@@ -262,8 +350,14 @@ function formatDate(isoStr: string) {
       <div class="mt-8">
         <h2 class="text-xl font-bold text-white px-2 mb-4">{{ $t('wallet.transactions') }}</h2>
         <div class="space-y-3">
-          <div v-if="transactions?.items.length === 0" class="text-center text-zinc-500 py-8">
-            {{ $t('wallet.noTransactions') }}
+          <div v-if="transactions?.items.length === 0">
+            <EmptyState
+              icon="Wallet"
+              :title="$t('wallet.empty.title')"
+              :description="$t('wallet.empty.description')"
+              :primary-action-text="$t('wallet.empty.action')"
+              @primary-action="depositSheetOpen = true"
+            />
           </div>
           <div
             v-for="txn in transactions?.items"
@@ -332,7 +426,7 @@ function formatDate(isoStr: string) {
         </label>
         <div class="flex gap-2 pt-2">
           <button class="flex-1 rounded-xl bg-zinc-900 px-4 py-2 font-medium ring-1 ring-zinc-800" @click="depositSheetOpen = false">{{ $t('wallet.cancel') }}</button>
-          <button class="flex-1 rounded-xl bg-emerald-500/20 text-emerald-400 px-4 py-2 font-medium ring-1 ring-emerald-500/30" :disabled="depositing" @click="handleDeposit">{{ $t('wallet.confirmDeposit') }}</button>
+          <button class="flex-1 rounded-xl bg-emerald-500/20 text-emerald-400 px-4 py-2 font-medium ring-1 ring-emerald-500/30 disabled:opacity-50" :disabled="depositing" @click="handleDeposit">{{ depositing ? '...' : $t('wallet.confirmDeposit') }}</button>
         </div>
       </div>
     </BottomSheet>
@@ -360,7 +454,7 @@ function formatDate(isoStr: string) {
         </label>
         <div class="flex gap-2 pt-2">
           <button class="flex-1 rounded-xl bg-zinc-900 px-4 py-2 font-medium ring-1 ring-zinc-800" @click="withdrawalSheetOpen = false">{{ $t('wallet.cancel') }}</button>
-          <button class="flex-1 rounded-xl bg-red-500/20 px-4 py-2 font-medium text-red-400 ring-1 ring-red-500/30" :disabled="withdrawing" @click="handleWithdrawal">{{ $t('wallet.confirmWithdraw') }}</button>
+          <button class="flex-1 rounded-xl bg-red-500/20 px-4 py-2 font-medium text-red-400 ring-1 ring-red-500/30 disabled:opacity-50" :disabled="withdrawing" @click="handleWithdrawal">{{ withdrawing ? '...' : $t('wallet.confirmWithdraw') }}</button>
         </div>
       </div>
     </BottomSheet>
@@ -395,7 +489,7 @@ function formatDate(isoStr: string) {
         </label>
         <div class="flex gap-2 pt-2">
           <button class="flex-1 rounded-xl bg-zinc-900 px-4 py-2 font-medium ring-1 ring-zinc-800" @click="adjustmentSheetOpen = false">{{ $t('wallet.cancel') }}</button>
-          <button class="flex-1 rounded-xl bg-zinc-500/20 px-4 py-2 font-medium text-zinc-200 ring-1 ring-zinc-500/30" :disabled="adjusting" @click="handleAdjustment">{{ $t('wallet.confirmAdjust') }}</button>
+          <button class="flex-1 rounded-xl bg-zinc-500/20 px-4 py-2 font-medium text-zinc-200 ring-1 ring-zinc-500/30 disabled:opacity-50" :disabled="adjusting" @click="handleAdjustment">{{ adjusting ? '...' : $t('wallet.confirmAdjust') }}</button>
         </div>
       </div>
     </BottomSheet>
@@ -424,9 +518,20 @@ function formatDate(isoStr: string) {
         </div>
         <div class="flex gap-2 pt-2">
           <button class="flex-1 rounded-xl bg-zinc-900 px-4 py-2 font-medium ring-1 ring-zinc-800" @click="exchangeSheetOpen = false">{{ $t('wallet.cancel') }}</button>
-          <button class="flex-1 rounded-xl bg-amber-500/20 text-amber-500 px-4 py-2 font-medium ring-1 ring-amber-500/30" :disabled="exchanging" @click="handleExchange">{{ $t('wallet.confirmExchange') }}</button>
+          <button class="flex-1 rounded-xl bg-amber-500/20 text-amber-500 px-4 py-2 font-medium ring-1 ring-amber-500/30 disabled:opacity-50" :disabled="exchanging" @click="handleExchange">{{ exchanging ? '...' : $t('wallet.confirmExchange') }}</button>
         </div>
       </div>
     </BottomSheet>
+
+    <ConfirmDialog
+      v-model="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :confirm-text="confirmDialog.confirmText"
+      :cancel-text="confirmDialog.cancelText"
+      :danger="confirmDialog.danger"
+      :loading="confirmDialog.loading"
+      @confirm="confirmDialog.onConfirm"
+    />
   </div>
 </template>

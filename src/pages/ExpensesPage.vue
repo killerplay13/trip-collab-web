@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref, watch, reactive } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Plus } from "@element-plus/icons-vue";
 import BottomSheet from "../components/BottomSheet.vue";
+import ConfirmDialog from "../components/ConfirmDialog.vue";
 import ExpenseCreateForm from "../components/ExpenseCreateForm.vue";
+import EmptyState from "../components/common/EmptyState.vue";
 import { createExpense, updateExpense, deleteExpense, getExpensesAll, getExpenseSummary, getSettlements, getExpenseDetail } from "../api/expenses";
 import type { ExpenseGroup, ExpenseMember, ExpenseSettlement, ExpenseSummary, ExpenseItem } from "../api/expenses";
 import { getTripMembers } from "../api/tripMembers";
@@ -11,6 +13,7 @@ import type { TripMember } from "../api/tripMembers";
 import { useTripAccess } from "../composables/useTripAccess";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { useI18n } from "vue-i18n";
+import { useToast } from "../composables/useToast";
 import { formatMoney } from "../utils/formatters";
 
 const route = useRoute();
@@ -18,6 +21,7 @@ const router = useRouter();
 const { isOwner, isMember } = useTripAccess();
 const tripId = computed(() => String(route.params.tripId || ""));
 const { t } = useI18n();
+const toast = useToast();
 
 const loading = ref(false);
 const creating = ref(false);
@@ -31,6 +35,17 @@ const sheetOpen = ref(false);
 const defaultExpenseDate = ref(toYmd(new Date()));
 const editingExpense = ref<ExpenseItem | undefined>(undefined);
 const prefillExpenseTitle = ref("");
+
+const confirmDialog = reactive({
+  open: false,
+  title: "",
+  message: "",
+  confirmText: t('settings.save'),
+  cancelText: t('itinerary.cancel'),
+  danger: false,
+  loading: false,
+  onConfirm: async () => {},
+});
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -285,6 +300,7 @@ async function handleCreate(payload: {
   splitMethod?: string;
   customSplits?: Array<{ memberId: string, amount: number }>;
 }) {
+  if (creating.value) return;
   if (!tripId.value) return;
   creating.value = true;
   createError.value = "";
@@ -296,31 +312,47 @@ async function handleCreate(payload: {
     }
     sheetOpen.value = false;
     prefillExpenseTitle.value = "";
+    toast.success(editingExpense.value ? t("expenses.toast.updated") : t("expenses.toast.created"));
     await load();
   } catch (e: any) {
-    createError.value =
-      e?.response?.data?.message ?? e?.message ?? t('expenses.createFailed');
+    const msg = e?.response?.data?.message ?? e?.message ?? t('expenses.createFailed');
+    createError.value = msg;
+    toast.error(msg);
   } finally {
     creating.value = false;
   }
 }
 
 async function handleDelete() {
+  if (creating.value) return;
   if (!tripId.value || !editingExpense.value) return;
-  if (!confirm("Are you sure you want to delete this expense?")) return;
   
-  creating.value = true;
-  createError.value = "";
-  try {
-    await deleteExpense(tripId.value, editingExpense.value.id);
-    sheetOpen.value = false;
-    await load();
-  } catch (e: any) {
-    createError.value =
-      e?.response?.data?.message ?? e?.message ?? "Failed to delete expense";
-  } finally {
-    creating.value = false;
-  }
+  confirmDialog.title = t('expenses.deleteExpense');
+  confirmDialog.message = t('expenses.deleteConfirm', { title: editingExpense.value.title || t('expenses.untitled') });
+  confirmDialog.confirmText = t('expenses.delete');
+  confirmDialog.danger = true;
+  confirmDialog.open = true;
+  
+  confirmDialog.onConfirm = async () => {
+    if (confirmDialog.loading) return;
+    confirmDialog.loading = true;
+    creating.value = true;
+    createError.value = "";
+    try {
+      await deleteExpense(tripId.value, editingExpense.value!.id);
+      sheetOpen.value = false;
+      confirmDialog.open = false;
+      toast.success(t("expenses.toast.deleted"));
+      await load();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message ?? e?.message ?? "Failed to delete expense";
+      createError.value = msg;
+      toast.error(msg);
+    } finally {
+      confirmDialog.loading = false;
+      creating.value = false;
+    }
+  };
 }
 
 onMounted(async () => {
@@ -409,17 +441,13 @@ watch(
         v-else-if="groups.length === 0"
         class="animate-fade-in-up"
       >
-        <div class="flex flex-col items-center text-center p-8 glass-card border-dashed border-2 border-zinc-800 bg-transparent shadow-none">
-          <div class="mb-5 w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center ring-4 ring-zinc-950 shadow-inner">
-            <svg class="w-8 h-8 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-          </div>
-          <div class="text-lg font-bold text-zinc-200">
-            {{ $t('expenses.noExpenses') }}
-          </div>
-          <div class="mt-2 text-sm text-zinc-500 leading-relaxed max-w-[250px]">
-            {{ $t('expenses.noExpensesDesc') }}
-          </div>
-        </div>
+        <EmptyState
+          icon="Money"
+          :title="$t('expenses.empty.title')"
+          :description="$t('expenses.empty.description')"
+          :primary-action-text="(isOwner || isMember) ? $t('expenses.empty.action') : undefined"
+          @primary-action="openCreate"
+        />
       </div>
 
       <div
@@ -571,5 +599,16 @@ watch(
         @submit="handleCreate"
       />
     </BottomSheet>
+
+    <ConfirmDialog
+      v-model="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :confirm-text="confirmDialog.confirmText"
+      :cancel-text="confirmDialog.cancelText"
+      :danger="confirmDialog.danger"
+      :loading="confirmDialog.loading"
+      @confirm="confirmDialog.onConfirm"
+    />
   </div>
 </template>

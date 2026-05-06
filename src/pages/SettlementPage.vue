@@ -1,26 +1,43 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import { useRoute } from "vue-router";
+import { computed, ref, watch, reactive } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
+import { useToast } from "../composables/useToast";
 import { useTripAccess } from "../composables/useTripAccess";
 import BottomSheet from "../components/BottomSheet.vue";
-import { getSettlements, createExpense, explainAiSettlement } from "../api/expenses";
-import type { AiSettlementExplainResponse, ExpenseSettlement } from "../api/expenses";
+import ConfirmDialog from "../components/ConfirmDialog.vue";
+import EmptyState from "../components/common/EmptyState.vue";
+import { getSettlements, createExpense, explainAiSettlement, getExpenseSummary } from "../api/expenses";
+import type { AiSettlementExplainResponse, ExpenseSettlement, ExpenseSummary } from "../api/expenses";
 import { formatMoney } from "../utils/formatters";
 
 const route = useRoute();
+const router = useRouter();
 const { t, locale } = useI18n();
+const toast = useToast();
 const tripId = computed(() => String(route.params.tripId || ""));
 const { isOwner, role } = useTripAccess();
 
 const loading = ref(false);
 const errorMsg = ref("");
 const settlements = ref<ExpenseSettlement[]>([]);
+const summary = ref<ExpenseSummary | null>(null);
 const sheetOpen = ref(false);
-const settling = ref(false);
+const settlingIds = ref(new Set<string>());
 const aiExplain = ref<AiSettlementExplainResponse | null>(null);
 const aiExplainLoading = ref(false);
 const aiExplainError = ref("");
+
+const confirmDialog = reactive({
+  open: false,
+  title: "",
+  message: "",
+  confirmText: t('settings.save'),
+  cancelText: t('itinerary.cancel'),
+  danger: false,
+  loading: false,
+  onConfirm: async () => {},
+});
 
 watch(locale, () => {
   aiExplain.value = null;
@@ -41,13 +58,21 @@ async function loadSettlements() {
   loading.value = true;
   errorMsg.value = "";
   try {
-    const list = await getSettlements(tripId.value);
+    const [list, expSummary] = await Promise.all([
+      getSettlements(tripId.value),
+      getExpenseSummary(tripId.value)
+    ]);
     settlements.value = Array.isArray(list) ? list : [];
+    summary.value = expSummary;
   } catch (e: any) {
     errorMsg.value = e?.response?.data?.message ?? e?.message ?? "Failed to load settlements";
   } finally {
     loading.value = false;
   }
+}
+
+function goToExpenses() {
+  router.push(`/t/${tripId.value}/expenses`);
 }
 
 async function openReview() {
@@ -60,23 +85,47 @@ function closeReview() {
 }
 
 async function handleSettle(item: ExpenseSettlement) {
-  if (!tripId.value || settling.value) return;
-  settling.value = true;
-  errorMsg.value = "";
-  try {
-    await createExpense(tripId.value, {
-      title: t("settlement.settleUpAction"),
-      amount: item.amount,
-      expenseDate: toYmd(new Date()),
-      paidByMemberId: item.fromMemberId,
-      participantMemberIds: [item.toMemberId]
-    });
-    await loadSettlements();
-  } catch (e: any) {
-    errorMsg.value = e?.response?.data?.message ?? e?.message ?? "Failed to settle up";
-  } finally {
-    settling.value = false;
-  }
+  const itemId = `${item.fromMemberId}-${item.toMemberId}`;
+  if (!tripId.value || settlingIds.value.has(itemId)) return;
+  
+  confirmDialog.title = t("settlement.settleUpAction");
+  confirmDialog.message = t('settlement.settleConfirmDesc', {
+    amount: formatMoney(item.amount, item.currency || "TWD"),
+    currency: "", // amount already includes currency
+    from: item.from || item.fromMemberId,
+    to: item.to || item.toMemberId
+  });
+  confirmDialog.confirmText = t("settlement.settleBtn");
+  confirmDialog.danger = false;
+  confirmDialog.open = true;
+
+  confirmDialog.onConfirm = async () => {
+    if (confirmDialog.loading) return;
+    confirmDialog.loading = true;
+    settlingIds.value = new Set(settlingIds.value).add(itemId);
+    errorMsg.value = "";
+    try {
+      await createExpense(tripId.value, {
+        title: t("settlement.settleUpAction"),
+        amount: item.amount,
+        expenseDate: toYmd(new Date()),
+        paidByMemberId: item.fromMemberId,
+        participantMemberIds: [item.toMemberId]
+      });
+      confirmDialog.open = false;
+      toast.success(t("settlement.toast.settled"));
+      await loadSettlements();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message ?? e?.message ?? "Failed to settle up";
+      errorMsg.value = msg;
+      toast.error(msg);
+    } finally {
+      confirmDialog.loading = false;
+      const next = new Set(settlingIds.value);
+      next.delete(itemId);
+      settlingIds.value = next;
+    }
+  };
 }
 
 async function handleExplainAi() {
@@ -88,6 +137,7 @@ async function handleExplainAi() {
 
   try {
     aiExplain.value = await explainAiSettlement(tripId.value, locale.value);
+    toast.success(t("settlement.toast.aiExplained"));
   } catch (e: any) {
     const status = e?.response?.status;
 
@@ -183,8 +233,25 @@ async function handleExplainAi() {
         <div v-for="i in 2" :key="i" class="glass-card h-20 animate-pulse"></div>
       </div>
       
-      <div v-else-if="settlements.length === 0" class="glass-card p-6 text-center border-dashed border-2 bg-transparent shadow-none">
-        <p class="text-sm font-medium text-zinc-500">{{ $t('expenses.allSquaredUp') }}</p>
+      <div v-else-if="settlements.length === 0">
+        <template v-if="summary && (summary.totalExpenses === 0 || summary.total === 0)">
+          <EmptyState
+            icon="Money"
+            :title="$t('settlement.empty.noExpensesTitle')"
+            :description="$t('settlement.empty.noExpensesDescription')"
+            :primary-action-text="$t('settlement.empty.goToExpenses')"
+            @primary-action="goToExpenses"
+          />
+        </template>
+        <template v-else>
+          <EmptyState
+            icon="SuccessFilled"
+            :title="$t('settlement.empty.title')"
+            :description="$t('settlement.empty.description')"
+            :primary-action-text="$t('settlement.empty.action')"
+            @primary-action="goToExpenses"
+          />
+        </template>
       </div>
 
       <div v-else class="space-y-4">
@@ -211,10 +278,10 @@ async function handleExplainAi() {
           </div>
           <button
             class="w-full py-2 rounded-xl bg-indigo-500/20 text-indigo-300 font-semibold text-sm transition-all hover:bg-indigo-500/30 active:scale-95 disabled:opacity-50"
-            :disabled="settling"
+            :disabled="settlingIds.has(`${item.fromMemberId}-${item.toMemberId}`)"
             @click="handleSettle(item)"
           >
-            {{ settling ? $t('settlement.settling') : $t('settlement.settleBtn') }}
+            {{ settlingIds.has(`${item.fromMemberId}-${item.toMemberId}`) ? $t('settlement.settling') : $t('settlement.settleBtn') }}
           </button>
         </div>
       </div>
@@ -305,5 +372,16 @@ async function handleExplainAi() {
         </div>
       </section>
     </BottomSheet>
+
+    <ConfirmDialog
+      v-model="confirmDialog.open"
+      :title="confirmDialog.title"
+      :message="confirmDialog.message"
+      :confirm-text="confirmDialog.confirmText"
+      :cancel-text="confirmDialog.cancelText"
+      :danger="confirmDialog.danger"
+      :loading="confirmDialog.loading"
+      @confirm="confirmDialog.onConfirm"
+    />
   </div>
 </template>

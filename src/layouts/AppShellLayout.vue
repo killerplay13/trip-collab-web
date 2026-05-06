@@ -4,6 +4,7 @@ import type { Component } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { Calendar, HomeFilled, Money, ScaleToOriginal, Wallet } from "@element-plus/icons-vue";
+import ToastContainer from "../components/common/ToastContainer.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -41,6 +42,8 @@ async function go(path: string) {
     <main class="mx-auto max-w-md px-4 pt-4 pb-[calc(6rem+env(safe-area-inset-bottom))] animate-fade-in-up">
       <RouterView />
     </main>
+
+    <ToastContainer />
 
     <!-- Bottom Tabs with Glassmorphism -->
     <nav
