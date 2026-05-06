@@ -11,6 +11,7 @@ import { useSessionStore } from "../stores/session";
 import { useToast } from "../composables/useToast";
 
 const session = useSessionStore();
+const route = useRoute();
 const { isOwner } = useTripAccess();
 const { t, locale } = useI18n();
 const toast = useToast();

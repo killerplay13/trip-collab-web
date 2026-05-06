@@ -3,19 +3,7 @@ import { useToast } from "../../composables/useToast";
 
 const { toasts, remove } = useToast();
 
-function getToastIcon(type: string) {
-  switch (type) {
-    case "success":
-      return "check_circle";
-    case "error":
-      return "error";
-    case "warning":
-      return "warning";
-    case "info":
-    default:
-      return "info";
-  }
-}
+
 
 function getToastClasses(type: string) {
   switch (type) {

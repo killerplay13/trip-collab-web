@@ -252,7 +252,6 @@ function clearAiDraft() {
   aiDraft.value = null;
   aiError.value = "";
   aiImportError.value = null;
-  aiImportSuccess.value = null;
 }
 
 async function regenerateAiDraft() {
@@ -264,7 +263,6 @@ async function handleGenerateAiDraft() {
   aiLoading.value = true;
   aiError.value = "";
   aiImportError.value = null;
-  aiImportSuccess.value = null;
   aiDraft.value = null;
   try {
     aiDraft.value = await generateAiItineraryDraft(tripId.value, {
@@ -303,7 +301,6 @@ async function handleImportAiDraft() {
   const targetItems = selectedAiDraftItems.value;
   if (!targetDay || !targetItems.length) {
     aiImportError.value = t("itinerary.aiImportNoItems");
-    aiImportSuccess.value = null;
     return;
   }
 
@@ -322,7 +319,6 @@ async function handleImportAiDraft() {
     confirmDialog.loading = true;
     aiImporting.value = true;
     aiImportError.value = null;
-    aiImportSuccess.value = null;
     try {
       await bulkCreateItinerary(tripId.value, {
         dayDate: selectedDate.value,
@@ -753,7 +749,6 @@ watch(() => selectedDate.value, () => {
   aiDraft.value = null;
   aiError.value = "";
   aiImportError.value = null;
-  aiImportSuccess.value = null;
   void load();
 });
 watch(searchQuery, (value) => {
