@@ -12,7 +12,7 @@ import {
   createWalletAdjustment,
 } from "../api/wallet";
 import type { WalletSummaryResponse, WalletTransactionListResponse } from "../api/wallet";
-import { Edit, Minus, Plus, Switch, Download, Upload, Setting } from "@element-plus/icons-vue";
+import { Switch, Download, Upload, Setting } from "@element-plus/icons-vue";
 import BottomSheet from "../components/BottomSheet.vue";
 import AmountInput from "../components/AmountInput.vue";
 import ConfirmDialog from "../components/ConfirmDialog.vue";

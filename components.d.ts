@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AmountInput: typeof import('./src/components/AmountInput.vue')['default']
     BottomSheet: typeof import('./src/components/BottomSheet.vue')['default']
     ConfirmDialog: typeof import('./src/components/ConfirmDialog.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']

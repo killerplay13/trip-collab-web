@@ -6,6 +6,7 @@ import BottomSheet from "../components/BottomSheet.vue";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
 import ExpenseCreateForm from "../components/ExpenseCreateForm.vue";
 import EmptyState from "../components/common/EmptyState.vue";
+
 import { createExpense, updateExpense, deleteExpense, getExpensesAll, getExpenseSummary, getSettlements, getExpenseDetail, getAiExpenseInsight } from "../api/expenses";
 import type { ExpenseGroup, ExpenseMember, ExpenseSettlement, ExpenseSummary, ExpenseItem, AiExpenseInsightResponse } from "../api/expenses";
 import { getTripMembers } from "../api/tripMembers";
@@ -201,189 +202,6 @@ const members = computed<ExpenseMember[]>(() => {
   return fallbackMembers.value;
 });
 
-async function load(options: { silent?: boolean } = {}) {
-  if (!tripId.value) return;
-  const silent = options.silent === true;
-  if (!silent) loading.value = true;
-  errorMsg.value = "";
-  try {
-    const [expenseGroups, expenseSummary, nextSettlements, nextMembers] = await Promise.all([
-      getExpensesAll(tripId.value),
-      getExpenseSummary(tripId.value),
-      getSettlements(tripId.value),
-      getTripMembers(tripId.value),
-    ]);
-    groups.value = Array.isArray(expenseGroups) ? expenseGroups : [];
-    summary.value = expenseSummary;
-    settlementItems.value = Array.isArray(nextSettlements) ? nextSettlements : [];
-    tripMembers.value = Array.isArray(nextMembers) ? nextMembers : [];
-  } catch (e: any) {
-    errorMsg.value =
-      e?.response?.data?.message ?? e?.message ?? t('expenses.loadFailed');
-    if (!silent) {
-      groups.value = [];
-
-const confirmDialog = reactive({
-  open: false,
-  title: "",
-  message: "",
-  confirmText: t('settings.save'),
-  cancelText: t('itinerary.cancel'),
-  danger: false,
-  loading: false,
-  onConfirm: async () => {},
-});
-
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function toYmd(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
-
-
-function formatPaymentSource(source: string | null | undefined) {
-  if (!source) return t("expenses.personal");
-  return source === "SHARED_WALLET" ? t("expenses.sharedWalletShort") : t("expenses.personal");
-}
-
-function formatSplitMethod(method: string | null | undefined) {
-  if (method === "CUSTOM_AMOUNT") return t("expenses.splitCustom");
-  return t("expenses.splitEqual");
-}
-
-function hasFxInfo(item: ExpenseItem) {
-  return Boolean(item.originalCurrency && item.fxRate && item.originalCurrency !== item.currency);
-}
-
-function formatFxInfo(item: ExpenseItem) {
-  const source = item.fxSource?.trim() || t("expenses.fxSourceManual");
-  return t("expenses.fxInfo", {
-    from: item.originalCurrency,
-    rate: item.fxRate,
-    to: item.currency || summary.value?.currency || "TWD",
-    source,
-  });
-}
-
-function getCategoryIcon(category: string | null | undefined) {
-  switch (normalizeCategory(category)) {
-    case "FOOD":
-      return "🍴";
-    case "CLOTHING":
-      return "👕";
-    case "LODGING":
-      return "🏨";
-    case "TRANSPORT":
-      return "🚗";
-    case "ENTERTAINMENT":
-      return "🎡";
-    default:
-      return "⋯";
-  }
-}
-
-function formatCategory(category: string | null | undefined) {
-  return t(`expenses.categories.${normalizeCategory(category)}`);
-}
-
-function normalizeCategory(category: string | null | undefined) {
-  const normalized = category?.trim().toUpperCase();
-  switch (normalized) {
-    case "FOOD":
-    case "CLOTHING":
-    case "LODGING":
-    case "TRANSPORT":
-    case "ENTERTAINMENT":
-    case "OTHER":
-      return normalized;
-    default:
-      return "OTHER";
-  }
-}
-
-const summaryRows = computed(() => {
-  const current = summary.value;
-  if (!current) return [];
-
-  const currency = current.currency ?? "TWD";
-  return [
-    {
-      label: t('expenses.total'),
-      value: formatMoney(current.totalAmount ?? current.total ?? current.totalExpenses, currency),
-    },
-    {
-      label: t('expenses.balance'),
-      value: formatMoney(current.totalBalance ?? current.total ?? current.netBalance, currency),
-    },
-    {
-      label: t('expenses.paid'),
-      value: formatMoney(current.totalPaid ?? current.paid, currency),
-    },
-    {
-      label: t('expenses.unsettled'),
-      value: formatMoney(current.unsettledAmount, currency),
-    },
-  ].filter((row) => Boolean(row.value));
-});
-
-const settlements = computed<ExpenseSettlement[]>(() => {
-  return settlementItems.value;
-});
-
-const fallbackMembers = computed<ExpenseMember[]>(() => {
-  const summaryMembers = Array.isArray(summary.value?.members) ? summary.value.members : [];
-  if (summaryMembers.length > 0) return summaryMembers;
-
-  const memberMap = new Map<string, ExpenseMember>();
-  for (const item of settlements.value) {
-    if (item.fromMemberId && !memberMap.has(item.fromMemberId)) {
-      memberMap.set(item.fromMemberId, {
-        memberId: item.fromMemberId,
-        name: item.from?.trim() || item.fromMemberId,
-      });
-    }
-    if (item.toMemberId && !memberMap.has(item.toMemberId)) {
-      memberMap.set(item.toMemberId, {
-        memberId: item.toMemberId,
-        name: item.to?.trim() || item.toMemberId,
-      });
-    }
-  }
-
-  for (const group of groups.value) {
-    for (const item of group.items) {
-      if (item.paidByMemberId && !memberMap.has(item.paidByMemberId)) {
-        memberMap.set(item.paidByMemberId, {
-          memberId: item.paidByMemberId,
-          name: item.paidByMemberId,
-        });
-      }
-      for (const participantMemberId of item.participantMemberIds ?? []) {
-        if (!participantMemberId || memberMap.has(participantMemberId)) continue;
-        memberMap.set(participantMemberId, {
-          memberId: participantMemberId,
-          name: participantMemberId,
-        });
-      }
-    }
-  }
-
-  return Array.from(memberMap.values());
-});
-
-const members = computed<ExpenseMember[]>(() => {
-  if (tripMembers.value.length > 0) {
-    return tripMembers.value.map((member) => ({
-      memberId: member.id,
-      name: member.nickname || member.id,
-    }));
-  }
-
-  return fallbackMembers.value;
-});
 
 const displayGroups = computed(() => {
   const sortedGroups = [...groups.value].sort((a, b) => b.expenseDate.localeCompare(a.expenseDate));
@@ -723,6 +541,21 @@ watch(
     </section>
 
     <!-- Expenses List -->
+    <div class="mt-8 space-y-6 animate-fade-in-up" style="animation-delay: 200ms;">
+      <div v-if="displayGroups.length === 0 && !loading" class="mt-12">
+        <EmptyState
+          icon="Receipt"
+          :title="$t('expenses.empty.title')"
+          :description="$t('expenses.empty.description')"
+          :primary-action-text="$t('expenses.empty.action')"
+          @primary-action="openCreate()"
+        />
+      </div>
+
+      <div v-else class="space-y-6">
+        <section v-for="group in displayGroups" :key="group.expenseDate">
+          <div class="flex items-center justify-between mb-3 px-1">
+            <div class="text-sm font-bold text-zinc-300">
               {{ group.expenseDate || "Unknown date" }}
             </div>
             <div class="text-xs font-medium text-zinc-500 bg-zinc-800/50 px-2 py-0.5 rounded-full">
