@@ -408,6 +408,8 @@ export default {
     editNote: "編輯筆記",
     deleteNote: "刪除筆記",
     deleteConfirm: "您確定要刪除「{title}」這則筆記嗎？",
+    creatorLabel: "建立者",
+    unknownCreator: "未知成員",
   },
   create: {
     title: "建立行程",

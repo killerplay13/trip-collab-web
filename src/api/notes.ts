@@ -8,6 +8,8 @@ export type Note = {
   content: string;
   createdAt: string;
   updatedAt: string;
+  creatorMemberId?: string | null;
+  creatorNickname?: string | null;
 };
 
 export type CreateNotePayload = {

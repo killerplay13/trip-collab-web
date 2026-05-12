@@ -405,6 +405,8 @@ export default {
     editNote: "Edit Note",
     deleteNote: "Delete Note",
     deleteConfirm: "Are you sure you want to delete this note \"{title}\"?",
+    creatorLabel: "Created by",
+    unknownCreator: "Unknown member",
   },
   create: {
     title: "Create a Trip",
