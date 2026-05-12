@@ -16,6 +16,7 @@ export type ExpenseItem = {
   fxRate?: number | null;
   fxSource?: string | null;
   customSplits?: Array<{ memberId: string, amount: number }>;
+  createdAt?: string | null;
 };
 
 export type ExpenseGroup = {
@@ -53,6 +54,7 @@ export type CreateExpensePayload = {
   paymentSource?: string;
   splitMethod?: string;
   customSplits?: Array<{ memberId: string, amount: number }>;
+  createdAt?: string | null;
 };
 
 export type ExpenseSettlement = {
@@ -130,6 +132,20 @@ function normalizeExpenseItem(raw: any): ExpenseItem {
     paidByMemberId: raw?.paidByMemberId ?? raw?.paid_by_member_id ?? null,
     participantMemberIds: participantMemberIds.map((id: unknown) => String(id ?? "")).filter(Boolean),
     currency: raw?.currency ?? null,
+    category: normalizeExpenseCategory(raw?.category ?? raw?.expense_category),
+    paymentSource: raw?.paymentSource ?? raw?.payment_source ?? null,
+    splitMethod: raw?.splitMethod ?? raw?.split_method ?? null,
+    originalAmount: raw?.originalAmount ?? raw?.original_amount ?? null,
+    originalCurrency: raw?.originalCurrency ?? raw?.original_currency ?? null,
+    fxRate: raw?.fxRate ?? raw?.fx_rate ?? null,
+    fxSource: raw?.fxSource ?? raw?.fx_source ?? null,
+    createdAt: raw?.createdAt ?? raw?.created_at ?? null,
+  };
+}
+
+function normalizeExpenseGroup(raw: any): ExpenseGroup {
+  const items = Array.isArray(raw?.items) ? raw.items : Array.isArray(raw?.expenses) ? raw.expenses : [];
+  return {
     expenseDate: raw?.expenseDate ?? raw?.expense_date ?? raw?.date ?? "",
     items: items.map(normalizeExpenseItem),
   };
@@ -361,3 +377,5 @@ export async function getExpenseDetail(tripId: string, expenseId: string): Promi
     splits: data.splits || [],
   };
 }
+
+
