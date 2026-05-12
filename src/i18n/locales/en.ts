@@ -303,11 +303,17 @@ export default {
       description: "Deposits, withdrawals, exchanges, and adjustments will appear here.",
       action: "Add wallet activity",
     },
+    permission: {
+      viewOnlyTitle: "Public fund view-only mode",
+      viewOnlyDescription: "Only the trip owner can deposit, withdraw, exchange, or adjust the public fund. You can still view balances and transaction history.",
+      ownerOnlyAction: "Only the trip owner can manage the public fund",
+    },
     toast: {
       depositSuccess: "Deposit successful",
       withdrawalSuccess: "Withdrawal successful",
       exchangeSuccess: "Exchange successful",
       adjustmentSuccess: "Balance adjustment successful",
+      ownerOnly: "Only the trip owner can manage the public fund",
     },
     noNote: "No note",
     depositTitle: "Deposit to Wallet",

@@ -303,11 +303,17 @@ export default {
       description: "存入、提領、換匯或調整餘額後，紀錄會顯示在這裡。",
       action: "新增錢包紀錄",
     },
+    permission: {
+      viewOnlyTitle: "公費檢視模式",
+      viewOnlyDescription: "只有旅程建立者可以新增、提領、換匯或調整公費。你目前可以查看公費餘額與交易紀錄。",
+      ownerOnlyAction: "只有旅程建立者可以操作公費",
+    },
     toast: {
       depositSuccess: "存入成功",
       withdrawalSuccess: "提領成功",
       exchangeSuccess: "換匯成功",
       adjustmentSuccess: "餘額調整成功",
+      ownerOnly: "只有旅程建立者可以操作公費",
     },
     noNote: "無備註",
     depositTitle: "存入公費錢包",

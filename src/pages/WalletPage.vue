@@ -12,17 +12,19 @@ import {
   createWalletAdjustment,
 } from "../api/wallet";
 import type { WalletSummaryResponse, WalletTransactionListResponse } from "../api/wallet";
-import { Switch, Download, Upload, Setting } from "@element-plus/icons-vue";
+import { Switch, Download, Upload, Setting, InfoFilled } from "@element-plus/icons-vue";
 import BottomSheet from "../components/BottomSheet.vue";
 import AmountInput from "../components/AmountInput.vue";
 import ConfirmDialog from "../components/ConfirmDialog.vue";
 import EmptyState from "../components/common/EmptyState.vue";
 import { usePullToRefresh } from "../composables/usePullToRefresh";
 import { formatAmount, parseAmountExpression } from "../utils/formatters";
+import { useTripAccess } from "../composables/useTripAccess";
 
 const route = useRoute();
 const { t } = useI18n();
 const toast = useToast();
+const { isOwner } = useTripAccess();
 const tripId = ref(String(route.params.tripId || ""));
 
 const summary = ref<WalletSummaryResponse | null>(null);
@@ -305,6 +307,7 @@ function formatDate(isoStr: string) {
       </div>
       <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
         <button
+          v-if="isOwner"
           class="flex min-h-[2.5rem] py-2 items-center justify-center gap-2 break-words whitespace-normal rounded-xl bg-zinc-500/10 px-3 text-xs font-medium text-zinc-300 ring-1 ring-zinc-500/20 transition-all hover:bg-zinc-500/20 active:scale-95 sm:px-4 sm:text-sm"
           @click="adjustmentSheetOpen = true"
         >
@@ -312,6 +315,7 @@ function formatDate(isoStr: string) {
           <span>{{ $t('wallet.adjust') }}</span>
         </button>
         <button
+          v-if="isOwner"
           class="flex min-h-[2.5rem] py-2 items-center justify-center gap-2 break-words whitespace-normal rounded-xl bg-red-500/10 px-3 text-xs font-medium text-red-400 ring-1 ring-red-500/20 transition-all hover:bg-red-500/20 active:scale-95 sm:px-4 sm:text-sm"
           @click="withdrawalSheetOpen = true"
         >
@@ -319,6 +323,7 @@ function formatDate(isoStr: string) {
           <span>{{ $t('wallet.withdraw') }}</span>
         </button>
         <button
+          v-if="isOwner"
           class="flex min-h-[2.5rem] py-2 items-center justify-center gap-2 break-words whitespace-normal rounded-xl bg-amber-500/10 px-3 text-xs font-medium text-amber-500 ring-1 ring-amber-500/20 transition-all hover:bg-amber-500/20 active:scale-95 sm:px-4 sm:text-sm"
           @click="exchangeSheetOpen = true"
         >
@@ -326,6 +331,7 @@ function formatDate(isoStr: string) {
           <span>{{ $t('wallet.exchange') }}</span>
         </button>
         <button
+          v-if="isOwner"
           class="flex min-h-[2.5rem] py-2 items-center justify-center gap-2 break-words whitespace-normal rounded-xl bg-emerald-500/10 px-3 text-xs font-medium text-emerald-400 ring-1 ring-emerald-500/20 transition-all hover:bg-emerald-500/20 active:scale-95 sm:px-4 sm:text-sm"
           @click="depositSheetOpen = true"
         >
@@ -334,6 +340,14 @@ function formatDate(isoStr: string) {
         </button>
       </div>
     </header>
+
+    <div v-if="!isOwner" class="rounded-2xl bg-blue-500/10 p-4 ring-1 ring-blue-500/20">
+      <div class="flex items-center gap-2 mb-1">
+        <el-icon class="text-blue-400 text-lg"><InfoFilled /></el-icon>
+        <span class="font-bold text-blue-400">{{ $t('wallet.permission.viewOnlyTitle') }}</span>
+      </div>
+      <p class="text-sm text-blue-300">{{ $t('wallet.permission.viewOnlyDescription') }}</p>
+    </div>
 
     <div v-if="errorMsg" class="rounded-2xl bg-red-500/10 p-3 text-sm font-medium text-red-300 ring-1 ring-red-500/20">
       {{ errorMsg }}
