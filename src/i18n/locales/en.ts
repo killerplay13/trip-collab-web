@@ -208,6 +208,10 @@ export default {
     retryLoading: "Retry Loading",
     notes: "Notes",
     notesDesc: "Trip guidelines & reminders",
+    recentNotes: "Recent Notes",
+    noNotesYet: "No notes yet. Be the first to write one!",
+    viewAllNotes: "View all notes",
+    loadNotesFailed: "Failed to load notes",
   },
   expenses: {
     title: "Expenses",

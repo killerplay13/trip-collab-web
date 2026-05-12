@@ -6,6 +6,7 @@ import BottomSheet from "../components/BottomSheet.vue";
 import EmptyState from "../components/common/EmptyState.vue";
 import { getTripMembers, updateTripMember, type TripMember } from "../api/tripMembers";
 import { getTrip, updateTrip } from "../api/trips";
+import { getNotes, type Note } from "../api/notes";
 import { useTripAccess } from "../composables/useTripAccess";
 import { useSessionStore } from "../stores/session";
 import { useToast } from "../composables/useToast";
@@ -23,6 +24,9 @@ const tripErrorMsg = ref("");
 const members = ref<TripMember[]>([]);
 const membersLoading = ref(false);
 const membersErrorMsg = ref("");
+const recentNotes = ref<Note[]>([]);
+const notesLoading = ref(false);
+const notesErrorMsg = ref("");
 const copyFeedback = ref("");
 const copyErrorMsg = ref("");
 const isCopying = ref(false);
@@ -137,6 +141,22 @@ async function loadMembers() {
   }
 }
 
+async function loadRecentNotes() {
+  if (!tripId.value) return;
+  notesLoading.value = true;
+  notesErrorMsg.value = "";
+  try {
+    const allNotes = await getNotes(tripId.value);
+    const sorted = [...allNotes].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    recentNotes.value = sorted.slice(0, 3);
+  } catch (e: any) {
+    recentNotes.value = [];
+    notesErrorMsg.value = e?.response?.data?.message ?? e?.message ?? t('home.loadNotesFailed');
+  } finally {
+    notesLoading.value = false;
+  }
+}
+
 async function copyInviteLink() {
   if (isCopying.value) return;
   isCopying.value = true;
@@ -170,6 +190,7 @@ async function copyInviteLink() {
 onMounted(() => {
   void loadTrip();
   void loadMembers();
+  void loadRecentNotes();
 });
 </script>
 
@@ -280,20 +301,45 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Notes Navigation -->
-    <div class="grid gap-3 animate-fade-in-up" style="animation-delay: 200ms;">
-      <a
-        class="group glass-card flex items-center justify-between p-5 transition-all hover:-translate-y-1 hover:shadow-2xl hover:shadow-zinc-900/50 hover:border-zinc-600"
-        :href="`/t/${tripId}/notes`"
-      >
-        <div>
-          <div class="text-xs font-semibold tracking-wider text-amber-400 uppercase mb-1">{{ $t('home.notes') }}</div>
-          <div class="text-sm font-medium text-zinc-300">{{ $t('home.notesDesc') }}</div>
-        </div>
-        <div class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400 transition-transform group-hover:bg-amber-400/10 group-hover:text-amber-400 group-hover:translate-x-1">
+    <!-- Recent Notes Section -->
+    <div class="glass-card p-5 mb-5 animate-fade-in-up" style="animation-delay: 200ms;">
+      <div class="flex items-center justify-between mb-4">
+        <div class="text-xs font-semibold tracking-wider text-amber-400 uppercase flex items-center gap-2">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+          {{ $t('home.recentNotes') }}
         </div>
-      </a>
+        <a :href="`/t/${tripId}/notes`" class="text-xs font-medium text-amber-500 hover:text-amber-400 transition-colors">
+          {{ $t('home.viewAllNotes') }} &rarr;
+        </a>
+      </div>
+
+      <div v-if="notesLoading" class="space-y-3">
+        <div v-for="i in 2" :key="i" class="h-16 rounded-xl bg-zinc-800/50 animate-pulse border border-zinc-800"></div>
+      </div>
+      
+      <div v-else-if="recentNotes.length" class="space-y-3">
+        <a
+          v-for="note in recentNotes"
+          :key="note.id"
+          :href="`/t/${tripId}/notes`"
+          class="block group rounded-xl bg-zinc-900/40 p-4 border border-zinc-800/50 transition-colors hover:bg-zinc-800/60 hover:border-zinc-700"
+        >
+          <div class="text-sm font-medium text-zinc-200 truncate mb-1">{{ note.title }}</div>
+          <div class="text-xs text-zinc-500 line-clamp-2 mb-2">{{ note.content }}</div>
+          <div class="text-[10px] font-mono text-zinc-600 flex justify-between">
+            <span>{{ note.creatorNickname || $t('notes.unknownCreator') }}</span>
+            <span>{{ new Date(note.createdAt).toLocaleDateString() }}</span>
+          </div>
+        </a>
+      </div>
+
+      <div v-else-if="!notesErrorMsg" class="py-6 text-center text-sm text-zinc-500">
+        {{ $t('home.noNotesYet') }}
+      </div>
+
+      <div v-if="notesErrorMsg" class="mt-3 text-sm text-red-400 bg-red-400/10 p-2 rounded-lg border border-red-400/20">
+        {{ notesErrorMsg }}
+      </div>
     </div>
 
     <!-- Settings Bottom Sheet -->

@@ -208,6 +208,10 @@ export default {
     retryLoading: "重新載入",
     notes: "筆記",
     notesDesc: "行程須知與提醒",
+    recentNotes: "最新筆記",
+    noNotesYet: "尚無筆記，來寫下第一筆吧！",
+    viewAllNotes: "查看全部筆記",
+    loadNotesFailed: "無法載入筆記",
   },
   expenses: {
     title: "記帳",
