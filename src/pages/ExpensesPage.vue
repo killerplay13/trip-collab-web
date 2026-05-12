@@ -222,6 +222,206 @@ async function load(options: { silent?: boolean } = {}) {
       e?.response?.data?.message ?? e?.message ?? t('expenses.loadFailed');
     if (!silent) {
       groups.value = [];
+
+const confirmDialog = reactive({
+  open: false,
+  title: "",
+  message: "",
+  confirmText: t('settings.save'),
+  cancelText: t('itinerary.cancel'),
+  danger: false,
+  loading: false,
+  onConfirm: async () => {},
+});
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function toYmd(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+
+
+function formatPaymentSource(source: string | null | undefined) {
+  if (!source) return t("expenses.personal");
+  return source === "SHARED_WALLET" ? t("expenses.sharedWalletShort") : t("expenses.personal");
+}
+
+function formatSplitMethod(method: string | null | undefined) {
+  if (method === "CUSTOM_AMOUNT") return t("expenses.splitCustom");
+  return t("expenses.splitEqual");
+}
+
+function hasFxInfo(item: ExpenseItem) {
+  return Boolean(item.originalCurrency && item.fxRate && item.originalCurrency !== item.currency);
+}
+
+function formatFxInfo(item: ExpenseItem) {
+  const source = item.fxSource?.trim() || t("expenses.fxSourceManual");
+  return t("expenses.fxInfo", {
+    from: item.originalCurrency,
+    rate: item.fxRate,
+    to: item.currency || summary.value?.currency || "TWD",
+    source,
+  });
+}
+
+function getCategoryIcon(category: string | null | undefined) {
+  switch (normalizeCategory(category)) {
+    case "FOOD":
+      return "🍴";
+    case "CLOTHING":
+      return "👕";
+    case "LODGING":
+      return "🏨";
+    case "TRANSPORT":
+      return "🚗";
+    case "ENTERTAINMENT":
+      return "🎡";
+    default:
+      return "⋯";
+  }
+}
+
+function formatCategory(category: string | null | undefined) {
+  return t(`expenses.categories.${normalizeCategory(category)}`);
+}
+
+function normalizeCategory(category: string | null | undefined) {
+  const normalized = category?.trim().toUpperCase();
+  switch (normalized) {
+    case "FOOD":
+    case "CLOTHING":
+    case "LODGING":
+    case "TRANSPORT":
+    case "ENTERTAINMENT":
+    case "OTHER":
+      return normalized;
+    default:
+      return "OTHER";
+  }
+}
+
+const summaryRows = computed(() => {
+  const current = summary.value;
+  if (!current) return [];
+
+  const currency = current.currency ?? "TWD";
+  return [
+    {
+      label: t('expenses.total'),
+      value: formatMoney(current.totalAmount ?? current.total ?? current.totalExpenses, currency),
+    },
+    {
+      label: t('expenses.balance'),
+      value: formatMoney(current.totalBalance ?? current.total ?? current.netBalance, currency),
+    },
+    {
+      label: t('expenses.paid'),
+      value: formatMoney(current.totalPaid ?? current.paid, currency),
+    },
+    {
+      label: t('expenses.unsettled'),
+      value: formatMoney(current.unsettledAmount, currency),
+    },
+  ].filter((row) => Boolean(row.value));
+});
+
+const settlements = computed<ExpenseSettlement[]>(() => {
+  return settlementItems.value;
+});
+
+const fallbackMembers = computed<ExpenseMember[]>(() => {
+  const summaryMembers = Array.isArray(summary.value?.members) ? summary.value.members : [];
+  if (summaryMembers.length > 0) return summaryMembers;
+
+  const memberMap = new Map<string, ExpenseMember>();
+  for (const item of settlements.value) {
+    if (item.fromMemberId && !memberMap.has(item.fromMemberId)) {
+      memberMap.set(item.fromMemberId, {
+        memberId: item.fromMemberId,
+        name: item.from?.trim() || item.fromMemberId,
+      });
+    }
+    if (item.toMemberId && !memberMap.has(item.toMemberId)) {
+      memberMap.set(item.toMemberId, {
+        memberId: item.toMemberId,
+        name: item.to?.trim() || item.toMemberId,
+      });
+    }
+  }
+
+  for (const group of groups.value) {
+    for (const item of group.items) {
+      if (item.paidByMemberId && !memberMap.has(item.paidByMemberId)) {
+        memberMap.set(item.paidByMemberId, {
+          memberId: item.paidByMemberId,
+          name: item.paidByMemberId,
+        });
+      }
+      for (const participantMemberId of item.participantMemberIds ?? []) {
+        if (!participantMemberId || memberMap.has(participantMemberId)) continue;
+        memberMap.set(participantMemberId, {
+          memberId: participantMemberId,
+          name: participantMemberId,
+        });
+      }
+    }
+  }
+
+  return Array.from(memberMap.values());
+});
+
+const members = computed<ExpenseMember[]>(() => {
+  if (tripMembers.value.length > 0) {
+    return tripMembers.value.map((member) => ({
+      memberId: member.id,
+      name: member.nickname || member.id,
+    }));
+  }
+
+  return fallbackMembers.value;
+});
+
+const displayGroups = computed(() => {
+  const sortedGroups = [...groups.value].sort((a, b) => b.expenseDate.localeCompare(a.expenseDate));
+  return sortedGroups.map(group => {
+    const sortedItems = [...group.items].sort((a, b) => {
+      if (a.createdAt && b.createdAt) {
+        return a.createdAt.localeCompare(b.createdAt);
+      }
+      return 0;
+    });
+    return {
+      ...group,
+      items: sortedItems
+    };
+  });
+});
+
+async function load(options: { silent?: boolean } = {}) {
+  if (!tripId.value) return;
+  const silent = options.silent === true;
+  if (!silent) loading.value = true;
+  errorMsg.value = "";
+  try {
+    const [expenseGroups, expenseSummary, nextSettlements, nextMembers] = await Promise.all([
+      getExpensesAll(tripId.value),
+      getExpenseSummary(tripId.value),
+      getSettlements(tripId.value),
+      getTripMembers(tripId.value),
+    ]);
+    groups.value = Array.isArray(expenseGroups) ? expenseGroups : [];
+    summary.value = expenseSummary;
+    settlementItems.value = Array.isArray(nextSettlements) ? nextSettlements : [];
+    tripMembers.value = Array.isArray(nextMembers) ? nextMembers : [];
+  } catch (e: any) {
+    errorMsg.value =
+      e?.response?.data?.message ?? e?.message ?? t('expenses.loadFailed');
+    if (!silent) {
+      groups.value = [];
       summary.value = null;
       settlementItems.value = [];
       tripMembers.value = [];
@@ -330,6 +530,7 @@ async function handleDelete() {
   if (creating.value) return;
   if (!tripId.value || !editingExpense.value) return;
   
+  const expenseIdToDelete = editingExpense.value.id;
   confirmDialog.title = t('expenses.deleteExpense');
   confirmDialog.message = t('expenses.deleteConfirm', { title: editingExpense.value.title || t('expenses.untitled') });
   confirmDialog.confirmText = t('expenses.delete');
@@ -342,7 +543,7 @@ async function handleDelete() {
     creating.value = true;
     createError.value = "";
     try {
-      await deleteExpense(tripId.value, editingExpense.value!.id);
+      await deleteExpense(tripId.value, expenseIdToDelete);
       sheetOpen.value = false;
       confirmDialog.open = false;
       toast.success(t("expenses.toast.deleted"));
@@ -522,59 +723,6 @@ watch(
     </section>
 
     <!-- Expenses List -->
-    <div class="mt-8">
-      <div class="flex items-center justify-between mb-4 animate-fade-in-up" style="animation-delay: 150ms;">
-        <div class="text-xs font-semibold tracking-wider text-blue-400 uppercase flex items-center gap-2">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-          {{ $t('expenses.transactions') }}
-        </div>
-      </div>
-
-      <div
-        v-if="loading"
-        class="space-y-4"
-      >
-        <div v-for="i in 2" :key="i" class="glass-card h-32 animate-pulse"></div>
-      </div>
-
-      <div
-        v-else-if="errorMsg"
-        class="glass-card p-6 text-center animate-fade-in-up"
-      >
-        <p class="text-sm font-medium text-red-400 mb-4">{{ errorMsg }}</p>
-        <button
-          class="rounded-xl bg-zinc-800 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-zinc-700 active:scale-95"
-          @click="load()"
-        >
-          {{ $t('expenses.retryLoading') }}
-        </button>
-      </div>
-
-      <div
-        v-else-if="groups.length === 0"
-        class="animate-fade-in-up"
-      >
-        <EmptyState
-          icon="Money"
-          :title="$t('expenses.empty.title')"
-          :description="$t('expenses.empty.description')"
-          :primary-action-text="(isOwner || isMember) ? $t('expenses.empty.action') : undefined"
-          @primary-action="openCreate"
-        />
-      </div>
-
-      <div
-        v-else
-        class="max-h-[min(52svh,32rem)] space-y-6 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:none] [-webkit-overflow-scrolling:touch] [&::-webkit-scrollbar]:hidden"
-      >
-        <section
-          v-for="(group, gIdx) in groups"
-          :key="group.expenseDate"
-          class="animate-fade-in-up"
-          :style="{ animationDelay: `${150 + gIdx * 50}ms` }"
-        >
-          <div class="flex items-center justify-between mb-3 px-1">
-            <div class="text-sm font-bold text-zinc-300">
               {{ group.expenseDate || "Unknown date" }}
             </div>
             <div class="text-xs font-medium text-zinc-500 bg-zinc-800/50 px-2 py-0.5 rounded-full">

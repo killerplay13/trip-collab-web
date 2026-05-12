@@ -366,6 +366,24 @@ async function load(options: { silent?: boolean } = {}) {
   }
 }
 
+const sortedItems = computed(() => {
+  return [...items.value].sort((a, b) => {
+    const timeA = a.startTime || "";
+    const timeB = b.startTime || "";
+    if (timeA && timeB) {
+      if (timeA !== timeB) return timeA.localeCompare(timeB);
+      const endA = a.endTime || "";
+      const endB = b.endTime || "";
+      if (endA !== endB) return endA.localeCompare(endB);
+    } else if (timeA && !timeB) {
+      return -1;
+    } else if (!timeA && timeB) {
+      return 1;
+    }
+    return items.value.indexOf(a) - items.value.indexOf(b);
+  });
+});
+
 const pullToRefresh = usePullToRefresh(() => load({ silent: true }));
 
 function swap(list: unknown, i: number, j: number): ItineraryItem[] {
@@ -396,14 +414,14 @@ async function persistReorder(newItems: ItineraryItem[]) {
 
 async function moveUp(idx: number) {
   if (idx <= 0 || reordering.value) return;
-  const next = swap(items.value, idx, idx - 1);
+  const next = swap(sortedItems.value, idx, idx - 1);
   items.value = next;
   await persistReorder(next);
 }
 
 async function moveDown(idx: number) {
-  if (idx >= items.value.length - 1 || reordering.value) return;
-  const next = swap(items.value, idx, idx + 1);
+  if (idx >= sortedItems.value.length - 1 || reordering.value) return;
+  const next = swap(sortedItems.value, idx, idx + 1);
   items.value = next;
   await persistReorder(next);
 }
@@ -1223,7 +1241,7 @@ watch(searchQuery, (value) => {
         </div>
         
         <div
-          v-for="(it, idx) in items"
+          v-for="(it, idx) in sortedItems"
           :key="it.id"
           class="relative group animate-fade-in-up"
           :style="{ animationDelay: `${idx * 50}ms` }"
@@ -1272,7 +1290,7 @@ watch(searchQuery, (value) => {
               <ItineraryItemActions
                 :item="it"
                 :idx="idx"
-                :total="items.length"
+                :total="sortedItems.length"
                 :reordering="reordering"
                 @expense="openExpenseFromItinerary"
                 @move-up="moveUp"

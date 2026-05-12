@@ -295,10 +295,11 @@ export default {
     adjustmentFailed: "調帳失敗",
     loading: "正在載入錢包...",
     balanceLabel: "{currency} 餘額",
-    transactions: "交易紀錄",
+    transactions: "公費交易紀錄",
+    transactionsDesc: "顯示公費的存入、提領、換匯與調整紀錄。",
     noTransactions: "尚無交易紀錄",
     empty: {
-      title: "還沒有錢包紀錄",
+      title: "還沒有公費交易紀錄",
       description: "存入、提領、換匯或調整餘額後，紀錄會顯示在這裡。",
       action: "新增錢包紀錄",
     },

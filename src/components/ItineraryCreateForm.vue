@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
   dayDate: string; // default selected date
   submitting?: boolean;
+  mode?: "create" | "edit";
+  initial?: any;
 }>();
 
 const emit = defineEmits<{
@@ -30,6 +32,30 @@ const sortOrder = ref("");
 const timeError = ref("");
 const sortOrderError = ref("");
 const { t } = useI18n();
+
+watch(
+  () => props.initial,
+  (val) => {
+    if (val) {
+      title.value = val.title || "";
+      startTime.value = val.startTime || "";
+      endTime.value = val.endTime || "";
+      locationName.value = val.locationName || "";
+      mapUrl.value = val.mapUrl || "";
+      note.value = val.note || "";
+      sortOrder.value = val.sortOrder !== undefined && val.sortOrder !== null ? String(val.sortOrder) : "";
+    } else {
+      title.value = "";
+      startTime.value = "";
+      endTime.value = "";
+      locationName.value = "";
+      mapUrl.value = "";
+      note.value = "";
+      sortOrder.value = "";
+    }
+  },
+  { immediate: true }
+);
 
 function normalizeTime(value: string) {
   const trimmed = value.trim();

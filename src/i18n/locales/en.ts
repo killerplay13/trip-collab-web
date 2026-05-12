@@ -295,10 +295,11 @@ export default {
     adjustmentFailed: "Adjustment failed",
     loading: "Loading wallet...",
     balanceLabel: "{currency} Balance",
-    transactions: "Transactions",
+    transactions: "Public Fund History",
+    transactionsDesc: "Deposits, withdrawals, exchanges, and adjustments for the shared trip fund.",
     noTransactions: "No transactions yet",
     empty: {
-      title: "No wallet activity yet",
+      title: "No public fund history yet",
       description: "Deposits, withdrawals, exchanges, and adjustments will appear here.",
       action: "Add wallet activity",
     },
