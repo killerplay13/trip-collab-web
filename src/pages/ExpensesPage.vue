@@ -38,6 +38,7 @@ const prefillExpenseTitle = ref("");
 const aiInsight = ref<AiExpenseInsightResponse | null>(null);
 const aiInsightLoading = ref(false);
 const aiInsightError = ref("");
+const isAiInsightExpanded = ref(false);
 
 const confirmDialog = reactive({
   open: false,
@@ -369,13 +370,20 @@ async function handleExpenseInsight() {
     aiInsight.value = await getAiExpenseInsight(tripId.value, {
       language: locale.value,
     });
+    isAiInsightExpanded.value = false;
   } catch (e: any) {
     aiInsightError.value =
-      e?.response?.data?.message ?? e?.message ?? "AI 花費分析暫時無法使用，請稍後再試。";
+      e?.response?.data?.message ?? e?.message ?? t("expenses.aiInsight.error");
   } finally {
     aiInsightLoading.value = false;
   }
 }
+
+watch([tripId, locale], () => {
+  aiInsight.value = null;
+  aiInsightError.value = "";
+  isAiInsightExpanded.value = false;
+});
 
 onMounted(async () => {
   await load();
@@ -432,90 +440,108 @@ watch(
 
     <!-- AI Expense Insight -->
     <section class="mt-6 animate-fade-in-up" style="animation-delay: 100ms;">
-      <div class="glass-card p-5 border border-amber-500/15">
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <div class="text-xs font-semibold tracking-wider text-amber-300 uppercase">AI 花費分析</div>
-            <p class="mt-1 text-sm leading-relaxed text-zinc-400">
-              產生本趟旅行的 mock 花費洞察。
+      <div class="glass-card p-4 border border-amber-500/15">
+        <div class="flex items-center justify-between gap-4">
+          <div class="min-w-0">
+            <div class="text-xs font-semibold tracking-wider text-amber-300 uppercase">{{ $t('expenses.aiInsight.title') }}</div>
+            <p v-if="!aiInsight && !aiInsightLoading && !aiInsightError" class="mt-1 text-xs text-zinc-500 truncate">
+              {{ $t('expenses.aiInsight.description') }}
             </p>
+            <div v-if="aiInsightLoading" class="mt-2 flex items-center gap-2">
+              <div class="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse"></div>
+              <span class="text-xs text-amber-300/70 font-medium">{{ $t('expenses.aiInsight.generating') }}</span>
+            </div>
           </div>
           <button
+            v-if="!aiInsightLoading && !aiInsight"
             type="button"
-            class="shrink-0 rounded-xl bg-amber-500/15 px-4 py-2 text-sm font-semibold text-amber-200 ring-1 ring-amber-500/25 transition-all hover:bg-amber-500/25 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-            :disabled="aiInsightLoading"
+            class="shrink-0 rounded-xl bg-amber-500/10 px-3 py-1.5 text-xs font-bold text-amber-200 ring-1 ring-amber-500/20 transition-all hover:bg-amber-500/20 active:scale-95"
             @click="handleExpenseInsight"
           >
-            {{ aiInsightLoading ? "分析中..." : "AI 花費分析" }}
+            {{ $t('expenses.aiInsight.button') }}
           </button>
         </div>
 
-        <div v-if="aiInsightLoading" class="mt-4 h-20 rounded-xl bg-zinc-900/70 animate-pulse"></div>
-
-        <div v-if="aiInsightError" class="mt-4 rounded-xl bg-red-400/10 p-3 ring-1 ring-red-400/20">
-          <p class="text-sm font-medium text-red-400">{{ aiInsightError }}</p>
+        <div v-if="aiInsightError" class="mt-3 flex items-center justify-between gap-3 rounded-xl bg-red-400/5 p-2.5 ring-1 ring-red-400/20">
+          <p class="text-xs font-medium text-red-400/90 truncate">{{ aiInsightError }}</p>
           <button
             type="button"
-            class="mt-2 text-xs font-semibold text-red-300 disabled:opacity-50"
-            :disabled="aiInsightLoading"
+            class="shrink-0 text-xs font-bold text-red-400 hover:text-red-300"
             @click="handleExpenseInsight"
           >
-            重試
+            {{ $t('expenses.aiInsight.retry') }}
           </button>
         </div>
 
-        <div v-if="aiInsight" class="mt-4 space-y-4">
-          <div v-if="aiInsight.fallback" class="rounded-xl bg-amber-400/10 p-3 ring-1 ring-amber-400/20">
-            <p class="text-xs font-semibold text-amber-200">
-              Fallback<span v-if="aiInsight.fallbackReason">: {{ aiInsight.fallbackReason }}</span>
-            </p>
-          </div>
-
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-wide text-amber-300">Summary</p>
-            <p class="mt-2 text-sm leading-relaxed text-zinc-200">{{ aiInsight.summary }}</p>
-          </div>
-
-          <div v-if="aiInsight.highlights.length">
-            <p class="text-xs font-semibold uppercase tracking-wide text-amber-300">Highlights</p>
-            <ul class="mt-2 space-y-2">
-              <li
-                v-for="(item, idx) in aiInsight.highlights"
-                :key="`highlight-${idx}-${item}`"
-                class="flex gap-2 text-sm leading-relaxed text-zinc-300"
+        <div v-if="aiInsight" class="mt-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex-1 min-w-0">
+              <div v-if="aiInsight.fallback" class="inline-flex items-center gap-1.5 mb-2 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] font-bold text-amber-300">
+                <span class="w-1 h-1 rounded-full bg-amber-400"></span>
+                {{ $t('expenses.aiInsight.fallback') }}
+              </div>
+              <p class="text-sm leading-relaxed text-zinc-200" :class="{ 'line-clamp-2': !isAiInsightExpanded }">
+                {{ aiInsight.summary }}
+              </p>
+            </div>
+            <button 
+              type="button"
+              class="shrink-0 text-xs font-bold text-amber-300/80 hover:text-amber-300 flex items-center gap-1 mt-1"
+              @click="isAiInsightExpanded = !isAiInsightExpanded"
+            >
+              {{ isAiInsightExpanded ? $t('expenses.aiInsight.collapse') : $t('expenses.aiInsight.expand') }}
+              <svg 
+                class="w-3 h-3 transition-transform duration-200" 
+                :class="{ 'rotate-180': isAiInsightExpanded }"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
               >
-                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-300"></span>
-                <span class="min-w-0 break-words">{{ item }}</span>
-              </li>
-            </ul>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </button>
           </div>
 
-          <div v-if="aiInsight.warnings.length">
-            <p class="text-xs font-semibold uppercase tracking-wide text-amber-300">Warnings</p>
-            <ul class="mt-2 space-y-2">
-              <li
-                v-for="(item, idx) in aiInsight.warnings"
-                :key="`warning-${idx}-${item}`"
-                class="flex gap-2 text-sm leading-relaxed text-zinc-300"
-              >
-                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300"></span>
-                <span class="min-w-0 break-words">{{ item }}</span>
-              </li>
-            </ul>
-          </div>
+          <div v-if="isAiInsightExpanded" class="mt-4 space-y-4 pt-4 border-t border-zinc-800/50 animate-fade-in-up">
+            <div v-if="aiInsight.highlights.length">
+              <p class="text-[10px] font-bold uppercase tracking-wider text-amber-300/60">{{ $t('expenses.aiInsight.highlights') }}</p>
+              <ul class="mt-2 space-y-2">
+                <li
+                  v-for="(item, idx) in aiInsight.highlights.slice(0, 2)"
+                  :key="`highlight-${idx}`"
+                  class="flex gap-2 text-sm leading-relaxed text-zinc-300"
+                >
+                  <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400/70"></span>
+                  <span class="min-w-0 break-words">{{ item }}</span>
+                </li>
+              </ul>
+            </div>
 
-          <div v-if="aiInsight.suggestions.length">
-            <p class="text-xs font-semibold uppercase tracking-wide text-amber-300">Suggestions</p>
-            <ul class="mt-2 space-y-2">
-              <li
-                v-for="(item, idx) in aiInsight.suggestions"
-                :key="`suggestion-${idx}-${item}`"
-                class="flex gap-2 text-sm leading-relaxed text-zinc-300"
-              >
-                <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-300"></span>
-                <span class="min-w-0 break-words">{{ item }}</span>
-              </li>
-            </ul>
+            <div v-if="aiInsight.warnings.length">
+              <p class="text-[10px] font-bold uppercase tracking-wider text-amber-300/60">{{ $t('expenses.aiInsight.warnings') }}</p>
+              <ul class="mt-2 space-y-2">
+                <li
+                  v-for="(item, idx) in aiInsight.warnings.slice(0, 2)"
+                  :key="`warning-${idx}`"
+                  class="flex gap-2 text-sm leading-relaxed text-zinc-300"
+                >
+                  <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400/70"></span>
+                  <span class="min-w-0 break-words">{{ item }}</span>
+                </li>
+              </ul>
+            </div>
+
+            <div v-if="aiInsight.suggestions.length">
+              <p class="text-[10px] font-bold uppercase tracking-wider text-amber-300/60">{{ $t('expenses.aiInsight.suggestions') }}</p>
+              <ul class="mt-2 space-y-2">
+                <li
+                  v-for="(item, idx) in aiInsight.suggestions.slice(0, 2)"
+                  :key="`suggestion-${idx}`"
+                  class="flex gap-2 text-sm leading-relaxed text-zinc-300"
+                >
+                  <span class="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400/70"></span>
+                  <span class="min-w-0 break-words">{{ item }}</span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
